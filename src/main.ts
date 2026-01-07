@@ -40,11 +40,13 @@ export default class LectureLensPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 		// Update LLM service configuration when settings change
-		this.llmService.updateConfig({
-			apiKey: this.settings.apiKey,
-			baseUrl: this.settings.baseUrl,
-			modelName: this.settings.modelName,
-		});
+		if (this.llmService) {
+			this.llmService.updateConfig({
+				apiKey: this.settings.apiKey,
+				baseUrl: this.settings.baseUrl,
+				modelName: this.settings.modelName,
+			});
+		}
 	}
 
 	/**

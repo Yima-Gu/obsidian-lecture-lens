@@ -203,14 +203,15 @@ let response: RequestUrlResponse;
 try {
 // Create a timeout promise with cleanup
 let timeoutId: ReturnType<typeof setTimeout> | undefined;
+const timeoutMs = this.config.timeout ?? 30000;
 const timeoutPromise = new Promise<never>((_, reject) => {
 timeoutId = setTimeout(() => {
 reject(
 new LLMServiceError(
-`Request timeout after ${this.config.timeout}ms`
+`Request timeout after ${timeoutMs}ms`
 )
 );
-}, this.config.timeout);
+}, timeoutMs);
 });
 
 // Race between the request and timeout
@@ -239,10 +240,19 @@ let errorMessage = `API request failed with status ${response.status}`;
 let apiError: ApiErrorResponse | undefined;
 
 try {
-const errorData = response.json as ApiErrorResponse;
-if (errorData.error?.message) {
+const errorData = response.json as unknown;
+// Validate that errorData has the expected structure
+if (
+errorData &&
+typeof errorData === "object" &&
+"error" in errorData &&
+errorData.error &&
+typeof errorData.error === "object" &&
+"message" in errorData.error &&
+typeof errorData.error.message === "string"
+) {
 errorMessage = errorData.error.message;
-apiError = errorData;
+apiError = errorData as ApiErrorResponse;
 }
 } catch {
 // If we can't parse the error, use the text

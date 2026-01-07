@@ -68,9 +68,9 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			 
-			.setName("Base url")
+			.setName("Base URL")
 			 
-			.setDesc("Set the base url for the api.")
+			.setDesc("Set the base URL for the api.")
 			.addText((text) =>
 				text
 					.setPlaceholder("https://api.openai.com/v1")

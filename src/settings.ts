@@ -54,7 +54,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			 
 			.setName("API key")
 			 
-			.setDesc("Store your api secret locally in plaintext.")
+			.setDesc("Warning: your API secret is stored locally in plaintext and is not encrypted.")
 			.addText((text) => {
 				text
 					.setPlaceholder("sk-...")

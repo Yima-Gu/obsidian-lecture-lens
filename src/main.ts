@@ -67,7 +67,8 @@ export default class LectureLensPlugin extends Plugin {
 
 			testNotice.hide();
 			
-			const message = response.choices[0]?.message.content || "No response";
+			const firstChoice = response.choices[0];
+			const message = firstChoice?.message?.content || "No response";
 			new Notice(
 				`✅ LLM connection successful!\nModel: ${response.model}\nResponse: ${message}`,
 				5000

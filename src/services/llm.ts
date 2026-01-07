@@ -1,10 +1,16 @@
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from "obsidian";
 
+// Retry configuration constants
+const RETRY_BASE_DELAY_MS = 1000; // Base delay for exponential backoff
+const RETRY_MAX_DELAY_MS = 10000; // Maximum delay between retries
+
 /**
  * OpenAI API message format
  */
 export interface ChatMessage {
+/** The role of the message author: 'system' for instructions, 'user' for prompts, 'assistant' for model responses */
 role: "system" | "user" | "assistant";
+/** The text content of the message */
 content: string;
 }
 
@@ -163,7 +169,7 @@ throw error;
 
 // Wait before retrying (exponential backoff)
 if (attempt < maxRetries) {
-const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+const delay = Math.min(RETRY_BASE_DELAY_MS * Math.pow(2, attempt), RETRY_MAX_DELAY_MS);
 await this.sleep(delay);
 }
 }
@@ -195,9 +201,10 @@ throw: false, // Handle errors manually
 let response: RequestUrlResponse;
 
 try {
-// Create a timeout promise
+// Create a timeout promise with cleanup
+let timeoutId: ReturnType<typeof setTimeout> | undefined;
 const timeoutPromise = new Promise<never>((_, reject) => {
-setTimeout(() => {
+timeoutId = setTimeout(() => {
 reject(
 new LLMServiceError(
 `Request timeout after ${this.config.timeout}ms`
@@ -211,6 +218,11 @@ response = await Promise.race([
 requestUrl(requestParams),
 timeoutPromise,
 ]);
+
+// Clear timeout if request completed successfully
+if (timeoutId !== undefined) {
+clearTimeout(timeoutId);
+}
 } catch (error) {
 // Network errors or timeout
 if (error instanceof LLMServiceError) {

@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-lecture-lens",
+	"name": "lecture-lens",
 	"version": "1.0.0",
-	"description": "An AI-powered Obsidian assistant for Slides OCR, Course Review, and RAG.",
+	"description": "Turn lecture slides and whiteboard photos into structured notes using Multimodal LLMs.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -29,7 +29,7 @@
 		"rag",
 		"study-tool"
 	],
-	"author": "Your Name",
+	"author": "Yima Gu",
 	"license": "MIT",
 	"devDependencies": {
 		"@eslint/js": "9.30.1",

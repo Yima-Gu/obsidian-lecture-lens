@@ -1,13 +1,22 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+/* eslint-disable obsidianmd/ui/sentence-case */
+import { App, PluginSettingTab, Setting } from "obsidian";
 import LectureLensPlugin from "./main";
 
+export type ApiProvider = "OpenAI" | "Gemini" | "Custom";
+
 export interface LectureLensSettings {
-	mySetting: string;
+	apiProvider: ApiProvider;
+	apiKey: string;
+	baseUrl: string;
+	modelName: string;
 }
 
 export const DEFAULT_SETTINGS: LectureLensSettings = {
-	mySetting: 'default'
-}
+	apiProvider: "OpenAI",
+	apiKey: "",
+	baseUrl: "https://api.openai.com/v1",
+	modelName: "gpt-4o",
+};
 
 export class LectureLensSettingTab extends PluginSettingTab {
 	plugin: LectureLensPlugin;
@@ -18,19 +27,82 @@ export class LectureLensSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName("API provider")
+			.setDesc("Choose which API provider to use.")
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions({
+						OpenAI: "OpenAI",
+						Gemini: "Gemini",
+						Custom: "Custom",
+					})
+					.setValue(this.plugin.settings.apiProvider)
+					.onChange(async (value) => {
+						const allowedProviders: ApiProvider[] = ["OpenAI", "Gemini", "Custom"];
+						const provider = allowedProviders.find((item) => item === value);
+						if (!provider) {
+							dropdown.setValue(this.plugin.settings.apiProvider);
+							return;
+						}
+						this.plugin.settings.apiProvider = provider;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("API key")
+			.setDesc("Warning: Your API key will be stored unencrypted on disk in this vault. Anyone with access can read it.")
+			.addText((text) => {
+				text
+					.setPlaceholder("sk-...")
+					.setValue(this.plugin.settings.apiKey)
+					.onChange(async (value) => {
+						this.plugin.settings.apiKey = value.trim();
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = "password";
+			});
+
+		new Setting(containerEl)
+			.setName("Base URL")
+			.setDesc("Set the base URL for the API.")
+			.addText((text) =>
+				text
+					.setPlaceholder("https://api.openai.com/v1")
+					.setValue(this.plugin.settings.baseUrl)
+					.onChange(async (value) => {
+						const trimmed = value.trim();
+						const isValid = /^https?:\/\//i.test(trimmed);
+						if (!isValid) {
+							text.inputEl.classList.add("lecture-lens-input-error");
+							text.inputEl.setAttribute("aria-invalid", "true");
+							text.inputEl.title = "Base URL must start with http:// or https://";
+							return;
+						}
+						text.inputEl.classList.remove("lecture-lens-input-error");
+						text.inputEl.removeAttribute("aria-invalid");
+						text.inputEl.removeAttribute("title");
+						this.plugin.settings.baseUrl = trimmed;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Model name")
+			.setDesc("Set the model identifier to call, for example gpt-4o.")
+			.addText((text) =>
+				text
+					.setPlaceholder("gpt-4o")
+					.setValue(this.plugin.settings.modelName)
+					.onChange(async (value) => {
+						this.plugin.settings.modelName = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }

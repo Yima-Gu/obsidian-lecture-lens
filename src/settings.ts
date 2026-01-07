@@ -33,7 +33,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			 
-			.setName("Api provider")
+			.setName("API provider")
 			 
 			.setDesc("Choose which API provider to use.")
 			.addDropdown((dropdown) =>

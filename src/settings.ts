@@ -52,7 +52,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			 
-			.setName("Api key")
+			.setName("API key")
 			 
 			.setDesc("Store your api secret locally in plaintext.")
 			.addText((text) => {

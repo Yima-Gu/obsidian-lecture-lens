@@ -1,6 +1,7 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import LectureLensPlugin from "./main";
+import { LLMServiceError } from "./services/llm";
 
 export type ApiProvider = "OpenAI" | "Gemini" | "Custom";
 
@@ -102,6 +103,52 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.modelName = value.trim();
 						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Test connection")
+			.setDesc("Verify that your API key and settings are working correctly.")
+			.addButton((button) =>
+				button
+					.setButtonText("Check connection")
+					.setCta()
+					.onClick(async () => {
+						button.setButtonText("Testing...").setDisabled(true);
+
+						try {
+							const response = await this.plugin.llmService.chatCompletion([
+								{
+									role: "user",
+									content: "Hello! Please respond with 'OK' to confirm connection.",
+								},
+							], {
+								max_tokens: 10,
+								temperature: 0,
+							});
+
+							const firstChoice = response.choices[0];
+							const message = firstChoice?.message?.content || "No response";
+							new Notice(
+								`✅ Connection successful!\nModel: ${response.model}\nResponse: ${message}`,
+								5000
+							);
+						} catch (error) {
+							let errorMessage = "Unknown error";
+							if (error instanceof LLMServiceError) {
+								errorMessage = error.message;
+								if (error.statusCode) {
+									errorMessage = `HTTP ${error.statusCode}: ${errorMessage}`;
+								}
+							} else if (error instanceof Error) {
+								errorMessage = error.message;
+							}
+
+							new Notice(`❌ Connection failed:\n${errorMessage}`, 8000);
+							console.error("LLM connection test failed:", error);
+						} finally {
+							button.setButtonText("Check connection").setDisabled(false);
+						}
 					})
 			);
 	}

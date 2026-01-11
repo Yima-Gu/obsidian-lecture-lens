@@ -134,18 +134,43 @@ export class LectureLensSettingTab extends PluginSettingTab {
 								5000
 							);
 						} catch (error) {
-							let errorMessage = "Unknown error";
+							// Log full error for developer debugging
+							console.error("LLM Connection Error:", error);
+
+							// Sanitize error message for user display
+							let userMessage = "❌ 连接错误: 未知错误 (查看控制台详情)";
+
 							if (error instanceof LLMServiceError) {
-								errorMessage = error.message;
-								if (error.statusCode) {
-									errorMessage = `HTTP ${error.statusCode}: ${errorMessage}`;
+								const statusCode = error.statusCode;
+								const errorMsg = error.message.toLowerCase();
+
+								if (statusCode === 401 || errorMsg.includes("unauthorized") || errorMsg.includes("authentication")) {
+									userMessage = "❌ 认证失败 (401)：请检查 API Key 是否正确。";
+								} else if (statusCode === 404 || errorMsg.includes("not found")) {
+									userMessage = "❌ 找不到资源 (404)：请检查 Base URL 或模型名称。";
+								} else if (statusCode === 429 || errorMsg.includes("rate limit") || errorMsg.includes("quota")) {
+									userMessage = "❌ 额度超限 (429)：余额不足或请求过频。";
+								} else if (errorMsg.includes("timeout")) {
+									userMessage = "❌ 请求超时：网络不稳定，请稍后重试。";
+								} else {
+									// Default: show short error snippet
+									const shortError = error.message.substring(0, 50);
+									userMessage = `❌ 连接错误: ${shortError}... (查看控制台详情)`;
 								}
 							} else if (error instanceof Error) {
-								errorMessage = error.message;
+								const errorMsg = error.message.toLowerCase();
+								
+								if (errorMsg.includes("timeout")) {
+									userMessage = "❌ 请求超时：网络不稳定，请稍后重试。";
+								} else if (errorMsg.includes("network")) {
+									userMessage = "❌ 网络错误：请检查网络连接。";
+								} else {
+									const shortError = error.message.substring(0, 50);
+									userMessage = `❌ 连接错误: ${shortError}... (查看控制台详情)`;
+								}
 							}
 
-							new Notice(`❌ Connection failed:\n${errorMessage}`, 8000);
-							console.error("LLM connection test failed:", error);
+							new Notice(userMessage, 8000);
 						} finally {
 							button.setButtonText("Check connection").setDisabled(false);
 						}

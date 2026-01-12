@@ -185,14 +185,8 @@ export class ImageExtractor {
 		// Convert ArrayBuffer to Uint8Array
 		const bytes = new Uint8Array(buffer);
 
-		// Convert bytes to binary string
-		let binary = "";
-		for (let i = 0; i < bytes.byteLength; i++) {
-			const byte = bytes[i];
-			if (byte !== undefined) {
-				binary += String.fromCharCode(byte);
-			}
-		}
+		// Convert bytes to binary string using Array.from for better performance
+		const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
 
 		// Encode to base64
 		return btoa(binary);

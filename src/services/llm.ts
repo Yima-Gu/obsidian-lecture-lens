@@ -5,13 +5,26 @@ const RETRY_BASE_DELAY_MS = 1000; // Base delay for exponential backoff
 const RETRY_MAX_DELAY_MS = 10000; // Maximum delay between retries
 
 /**
+ * Content part for multimodal messages (text or image)
+ */
+export interface MessageContentPart {
+	type: "text" | "image_url";
+	text?: string;
+	image_url?: {
+		url: string; // data:image/jpeg;base64,... or https://...
+		detail?: "auto" | "low" | "high";
+	};
+}
+
+/**
  * OpenAI API message format
+ * Supports both simple string content and multimodal content arrays
  */
 export interface ChatMessage {
-/** The role of the message author: 'system' for instructions, 'user' for prompts, 'assistant' for model responses */
-role: "system" | "user" | "assistant";
-/** The text content of the message */
-content: string;
+	/** The role of the message author: 'system' for instructions, 'user' for prompts, 'assistant' for model responses */
+	role: "system" | "user" | "assistant";
+	/** The content of the message - can be a string or array of content parts for multimodal messages */
+	content: string | MessageContentPart[];
 }
 
 /**
@@ -286,5 +299,57 @@ throw new LLMServiceError(
  */
 private sleep(ms: number): Promise<void> {
 return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Create a multimodal message with text and images
+ * @param role - The role of the message
+ * @param text - The text content
+ * @param images - Array of image data (base64 and MIME type)
+ * @returns A message with multimodal content
+ */
+public static createMultimodalMessage(
+role: "system" | "user" | "assistant",
+text: string,
+images: Array<{ base64: string; mimeType: string; detail?: "auto" | "low" | "high" }>
+): ChatMessage {
+const contentParts: MessageContentPart[] = [
+{
+type: "text",
+text,
+},
+];
+
+// Add image parts
+for (const image of images) {
+contentParts.push({
+type: "image_url",
+image_url: {
+url: `data:${image.mimeType};base64,${image.base64}`,
+detail: image.detail ?? "auto",
+},
+});
+}
+
+return {
+role,
+content: contentParts,
+};
+}
+
+/**
+ * Create a simple text message
+ * @param role - The role of the message
+ * @param text - The text content
+ * @returns A message with text content
+ */
+public static createTextMessage(
+role: "system" | "user" | "assistant",
+text: string
+): ChatMessage {
+return {
+role,
+content: text,
+};
 }
 }

@@ -266,7 +266,7 @@ export default class LectureLensPlugin extends Plugin {
 			setTimeout(() => {
 				modal.close();
 				new Notice(
-					`Analysis complete! Generated notes added to the end of the document`,
+					"Analysis complete! Generated notes added to the end of the document",
 					5000
 				);
 			}, 500);

@@ -1,3 +1,4 @@
+// The title uses the plugin name "Lecture Lens" which requires capital letters
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { Modal, App } from "obsidian";
 

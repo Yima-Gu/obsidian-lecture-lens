@@ -180,14 +180,29 @@ export class ImageExtractor {
 
 	/**
 	 * Convert ArrayBuffer to base64 string
+	 * Uses optimized method for Electron environment to handle large images efficiently
 	 */
 	private arrayBufferToBase64(buffer: ArrayBuffer): string {
+		// In Electron/Node.js environment, use Buffer for optimal performance
+		// This is much more efficient than Array.from() for large images (5MB+)
+		if (typeof Buffer !== 'undefined') {
+			// Node.js/Electron environment - use Buffer (optimal)
+			// eslint-disable-next-line no-undef
+			return Buffer.from(buffer).toString('base64');
+		}
+		
+		// Fallback for browser environment
 		// Convert ArrayBuffer to Uint8Array
 		const bytes = new Uint8Array(buffer);
-
-		// Convert bytes to binary string using Array.from for better performance
-		const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
-
+		
+		// Use string concatenation with chunks to avoid call stack issues
+		let binary = '';
+		const chunkSize = 0x8000; // 32KB chunks
+		for (let i = 0; i < bytes.length; i += chunkSize) {
+			const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+			binary += String.fromCharCode.apply(null, Array.from(chunk));
+		}
+		
 		// Encode to base64
 		return btoa(binary);
 	}

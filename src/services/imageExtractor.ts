@@ -279,7 +279,7 @@ export class ImageExtractor {
 		// Parse the link text to extract the image path
 		let imagePath: string | null = null;
 		let altText: string | undefined;
-		let linkType: "wiki" | "markdown" = "wiki";
+		let linkType: "wiki" | "markdown";
 
 		// Try wiki-style: ![[image.png]] or ![[image.png|alt text]]
 		const wikiMatch = linkText.match(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
@@ -294,6 +294,9 @@ export class ImageExtractor {
 				altText = markdownMatch[1]?.trim() || undefined;
 				imagePath = markdownMatch[2]?.trim() ?? null;
 				linkType = "markdown";
+			} else {
+				// No valid image link found
+				return null;
 			}
 		}
 

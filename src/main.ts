@@ -306,7 +306,7 @@ export default class LectureLensPlugin extends Plugin {
 				line: cursor.line + 1,
 				ch: 0,
 			};
-			editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
+			editor.replaceRange(`\n${aiResponse}\n`, insertPosition);
 
 			new Notice("Analysis complete", 3000);
 		} catch (error) {

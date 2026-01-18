@@ -2,6 +2,9 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { Modal, App, TextAreaComponent, ButtonComponent } from "obsidian";
 
+// Focus delay to ensure modal content is fully rendered
+const FOCUS_DELAY_MS = 10;
+
 /**
  * Modal for asking custom questions about a specific image
  */
@@ -54,7 +57,7 @@ export class AskImageModal extends Modal {
 		setTimeout(() => {
 			this.textArea.inputEl.focus();
 			this.textArea.inputEl.select();
-		}, 10);
+		}, FOCUS_DELAY_MS);
 
 		// Create button container
 		const buttonContainer = contentEl.createDiv({

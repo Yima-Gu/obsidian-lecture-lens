@@ -367,9 +367,16 @@ content: text,
  * @returns A system message with instructions to prevent conversational fillers
  */
 public static createSystemPrompt(): ChatMessage {
+const systemPromptText = `You are a helpful assistant that analyzes images. 
+Output ONLY the markdown content requested. 
+Do NOT start with conversational phrases like 'Certainly', 'Sure', 'Here is', or 'Here's'. 
+Do NOT use framing lines like '---' or '\`\`\`markdown' unless specifically asked. 
+Do NOT add explanations about what you're doing. 
+Just provide the direct markdown output.`;
+
 return {
 role: "system",
-content: "You are a helpful assistant that analyzes images. Output ONLY the markdown content requested. Do NOT start with conversational phrases like 'Certainly', 'Sure', 'Here is', or 'Here's'. Do NOT use framing lines like '---' or '```markdown' unless specifically asked. Do NOT add explanations about what you're doing. Just provide the direct markdown output.",
+content: systemPromptText,
 };
 }
 }

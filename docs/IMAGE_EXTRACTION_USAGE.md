@@ -32,14 +32,21 @@ Located in `src/services/imageExtractor.ts`, this service provides:
 
 - **`extractAndReadImages(content: string, sourceFile?: TFile)`**: Complete pipeline to extract and read all images from content
 
+- **`extractOneImage(linkText: string, sourceFile?: TFile)`**: Extract and read a single image from its link text
+    - Parses Wiki-style `![[image.png]]` or Markdown-style `![alt](image.png)`
+    - Returns image data with base64 encoding, or null if not found
+    - Used for context-menu based single image analysis
+
 ### LLM Service Extensions
 
 Located in `src/services/llm.ts`, the LLM service now supports:
 
 - **Multimodal Messages**: The `ChatMessage` interface now supports both string content and content arrays with text and images
+- **System Prompt**: `LLMService.createSystemPrompt()` creates a system message with strict output constraints to prevent conversational fillers
 - **Helper Methods**:
     - `LLMService.createMultimodalMessage(role, text, images)`: Create a message with text and images
     - `LLMService.createTextMessage(role, text)`: Create a simple text message
+    - `chatCompletion(messages, options, useSystemPrompt)`: Optional third parameter to prepend strict system prompt
 
 ## Usage Examples
 
@@ -104,7 +111,49 @@ if (activeFile) {
 }
 ```
 
-### Example 3: Manual Test Command
+### Example 3: Context-Menu Single Image Analysis
+
+```typescript
+// Extract a single image from its link text (used in context menu)
+const imageLink = "![[lecture-slide.png]]"; // or "![diagram](diagram.jpg)"
+const activeFile = this.app.workspace.getActiveFile();
+
+if (activeFile) {
+	// Extract the single image
+	const imageData = await this.imageExtractor.extractOneImage(
+		imageLink,
+		activeFile,
+	);
+
+	if (imageData) {
+		// Create multimodal message with custom user prompt
+		const userPrompt = "Explain the formulas shown in this image";
+		const message = LLMService.createMultimodalMessage("user", userPrompt, [
+			{
+				base64: imageData.base64,
+				mimeType: imageData.mimeType,
+				detail: "high" as const,
+			},
+		]);
+
+		// Send to LLM with system prompt to prevent conversational fillers
+		const response = await this.llmService.chatCompletion(
+			[message],
+			{
+				temperature: 0.7,
+				max_tokens: 4000,
+			},
+			true, // Use system prompt
+		);
+
+		// Insert response below the image
+		const aiResponse = response.choices[0]?.message?.content;
+		// ... insert into editor
+	}
+}
+```
+
+### Example 4: Manual Test Command
 
 The plugin includes a test command to verify image extraction:
 
@@ -115,6 +164,21 @@ The plugin includes a test command to verify image extraction:
     - Number of image references found
     - Number of images successfully loaded
     - Size and MIME type of each image
+
+## How to Use the Context-Menu Workflow
+
+The plugin now supports a context-menu based interaction for analyzing individual images:
+
+1. **Right-click on an image link** in your note (either `![[image.png]]` or `![alt](image.png)`)
+2. Select **"Ask AI about image"** from the context menu
+3. A modal will appear with a text area containing the default prompt
+4. **Customize the prompt** to ask specific questions (e.g., "Explain this formula", "Summarize the key concepts")
+5. Press **Enter** (or click Submit) to start the analysis
+6. The modal closes immediately, and a non-blocking notice shows "Thinking..."
+7. The AI response is **inserted directly below the image** in your note
+8. The response contains clean markdown output without conversational fillers
+
+**Note:** Right-clicking on regular text will NOT show the menu item - it only appears when clicking on image links.
 
 ## Supported Image Formats
 

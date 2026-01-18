@@ -265,4 +265,66 @@ export class ImageExtractor {
 
 		return imageDataArray;
 	}
+
+	/**
+	 * Extract a single image from its link text
+	 * @param linkText - The complete link text (e.g., "![[image.png]]" or "![alt](image.png)")
+	 * @param sourceFile - The source file (for path resolution)
+	 * @returns Image data with base64 encoding, or null if not found
+	 */
+	public async extractOneImage(
+		linkText: string,
+		sourceFile?: TFile
+	): Promise<ImageData | null> {
+		// Parse the link text to extract the image path
+		let imagePath: string | null = null;
+		let altText: string | undefined;
+		let linkType: "wiki" | "markdown" = "wiki";
+
+		// Try wiki-style: ![[image.png]] or ![[image.png|alt text]]
+		const wikiMatch = linkText.match(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+		if (wikiMatch) {
+			imagePath = wikiMatch[1]?.trim() ?? null;
+			altText = wikiMatch[2]?.trim();
+			linkType = "wiki";
+		} else {
+			// Try markdown-style: ![alt text](image.png)
+			const markdownMatch = linkText.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+			if (markdownMatch) {
+				altText = markdownMatch[1]?.trim() || undefined;
+				imagePath = markdownMatch[2]?.trim() ?? null;
+				linkType = "markdown";
+			}
+		}
+
+		if (!imagePath) {
+			return null;
+		}
+
+		// Try to resolve and read the image
+		try {
+			const file = this.resolveImageFile(imagePath, sourceFile);
+			if (!file) {
+				console.warn(`Image file not found: ${imagePath}`);
+				return null;
+			}
+
+			const { base64, mimeType, size } = await this.readImageAsBase64(file);
+
+			return {
+				reference: {
+					originalText: linkText,
+					path: imagePath,
+					altText,
+					linkType,
+				},
+				base64,
+				mimeType,
+				size,
+			};
+		} catch (error) {
+			console.error(`Failed to read image ${imagePath}:`, error);
+			return null;
+		}
+	}
 }

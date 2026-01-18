@@ -138,6 +138,7 @@ throw new LLMServiceError("Model name is required");
  * 
  * @param messages - Array of chat messages
  * @param options - Optional parameters for the API request
+ * @param useSystemPrompt - Whether to prepend the strict system prompt (default: false)
  * @returns The completion response
  * @throws LLMServiceError on API errors or network failures
  */
@@ -147,13 +148,21 @@ options?: {
 temperature?: number;
 max_tokens?: number;
 top_p?: number;
-}
+},
+useSystemPrompt = false
 ): Promise<ChatCompletionResponse> {
 this.validateConfig();
 
+// Prepend system prompt if requested
+let finalMessages = messages;
+if (useSystemPrompt) {
+const systemPrompt = LLMService.createSystemPrompt();
+finalMessages = [systemPrompt, ...messages];
+}
+
 const requestBody: ChatCompletionRequest = {
 model: this.config.modelName,
-messages,
+messages: finalMessages,
 stream: false,
 ...options,
 };
@@ -350,6 +359,17 @@ text: string
 return {
 role,
 content: text,
+};
+}
+
+/**
+ * Create a system prompt with strict output constraints
+ * @returns A system message with instructions to prevent conversational fillers
+ */
+public static createSystemPrompt(): ChatMessage {
+return {
+role: "system",
+content: "You are a helpful assistant that analyzes images. Output ONLY the markdown content requested. Do NOT start with conversational phrases like 'Certainly', 'Sure', 'Here is', or 'Here's the'. Do NOT use framing lines like '---' or '```markdown' unless specifically asked. Do NOT add explanations about what you're doing. Just provide the direct markdown output.",
 };
 }
 }

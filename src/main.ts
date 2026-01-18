@@ -1,8 +1,8 @@
-import { MarkdownView, Notice, Plugin } from "obsidian";
+import { Editor, EditorPosition, MarkdownView, Menu, Notice, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, LectureLensSettingTab, LectureLensSettings } from "./settings";
 import { LLMService, LLMServiceError } from "./services/llm";
 import { ImageExtractor } from "./services/imageExtractor";
-import { AnalysisModal } from "./ui/analysisModal";
+import { AskImageModal } from "./ui/askImageModal";
 
 // Plugin entry point for Lecture Lens.
 export default class LectureLensPlugin extends Plugin {
@@ -25,10 +25,12 @@ export default class LectureLensPlugin extends Plugin {
 		
 		this.addSettingTab(new LectureLensSettingTab(this.app, this));
 		
-		// Add ribbon icon for quick analysis
-		this.addRibbonIcon("glasses", "Analyze note images", () => {
-			void this.analyzeCurrentNote();
-		});
+		// Add editor menu event listener for context menu
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: MarkdownView) => {
+				this.handleEditorMenu(menu, editor, view);
+			})
+		);
 		
 		// Add test command for LLM connectivity
 		this.addCommand({
@@ -176,65 +178,118 @@ export default class LectureLensPlugin extends Plugin {
 	}
 
 	/**
-	 * Main analysis workflow: Extract images from the current note and generate lecture notes
+	 * Handle editor context menu event
+	 * Show "Lecture Lens: Ask AI" menu item only when right-clicking on an image
 	 */
-	private async analyzeCurrentNote(): Promise<void> {
-		const activeFile = this.app.workspace.getActiveFile();
-
-		if (!activeFile) {
-			new Notice("No active file. Please open a note first.", 5000);
-			return;
+	private handleEditorMenu(menu: Menu, editor: Editor, view: MarkdownView): void {
+		const cursor = editor.getCursor();
+		const line = editor.getLine(cursor.line);
+		
+		// Check if the current line contains an image link
+		const imageLink = this.findImageLinkAtPosition(line, cursor.ch);
+		
+		if (imageLink) {
+			menu.addItem((item) => {
+				item
+					.setTitle("Ask AI about image")
+					.setIcon("glasses")
+					.onClick(() => {
+						this.handleAskAI(imageLink, editor, view);
+					});
+			});
 		}
+	}
 
-		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!activeView) {
-			new Notice("No active Markdown view found.", 5000);
-			return;
+	/**
+	 * Find an image link at the cursor position in a line
+	 * @param line - The line of text
+	 * @param cursorCh - The cursor character position
+	 * @returns The image link text or null if not found
+	 */
+	private findImageLinkAtPosition(line: string, cursorCh: number): string | null {
+		// Pattern for wiki-style: ![[image.png]] or ![[image.png|alt text]]
+		const wikiRegex = /!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+		let match: RegExpExecArray | null;
+		
+		while ((match = wikiRegex.exec(line)) !== null) {
+			const start = match.index;
+			const end = start + match[0].length;
+			if (cursorCh >= start && cursorCh <= end) {
+				return match[0];
+			}
 		}
+		
+		// Pattern for markdown-style: ![alt text](image.png)
+		const markdownRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+		
+		while ((match = markdownRegex.exec(line)) !== null) {
+			const start = match.index;
+			const end = start + match[0].length;
+			if (cursorCh >= start && cursorCh <= end) {
+				return match[0];
+			}
+		}
+		
+		return null;
+	}
 
-		const editor = activeView.editor;
-
-		// Create and open the analysis modal
-		const modal = new AnalysisModal(this.app);
+	/**
+	 * Handle the "Ask AI" action for a specific image
+	 */
+	private handleAskAI(imageLink: string, editor: Editor, view: MarkdownView): void {
+		const modal = new AskImageModal(this.app, (userPrompt: string) => {
+			void this.analyzeImage(imageLink, userPrompt, editor, view);
+		});
 		modal.open();
+	}
+
+	/**
+	 * Analyze a single image with a custom user prompt
+	 */
+	private async analyzeImage(
+		imageLink: string,
+		userPrompt: string,
+		editor: Editor,
+		view: MarkdownView
+	): Promise<void> {
+		const activeFile = view.file;
+		
+		if (!activeFile) {
+			new Notice("No active file found", 5000);
+			return;
+		}
+
+		// Show non-blocking notice
+		new Notice("Thinking...", 5000);
 
 		try {
-			// Step 1: Find and extract images
-			modal.setStatusFindingImages();
-			const content = await this.app.vault.read(activeFile);
-			const imageData = await this.imageExtractor.extractAndReadImages(
-				content,
-				activeFile
-			);
+			// Extract the single image
+			const imageData = await this.imageExtractor.extractOneImage(imageLink, activeFile);
 
-			// Check if any images were found
-			if (imageData.length === 0) {
-				modal.close();
-				new Notice("No images found in the current note", 5000);
+			if (!imageData) {
+				new Notice("Could not load the image", 5000);
 				return;
 			}
 
-			// Step 2: Call LLM for analysis
-			modal.setStatusAnalyzing();
-
-			// Create multimodal message with images
+			// Create multimodal message with the user's custom prompt
 			const userMessage = LLMService.createMultimodalMessage(
 				"user",
-				"Please generate structured lecture notes based on these images. Analyze the content carefully and create clear, well-organized notes with proper headings, bullet points, and key concepts.",
-				imageData.map((img) => ({
-					base64: img.base64,
-					mimeType: img.mimeType,
+				userPrompt,
+				[{
+					base64: imageData.base64,
+					mimeType: imageData.mimeType,
 					detail: "high" as const,
-				}))
+				}]
 			);
 
-			// Make API call
+			// Make API call with system prompt to prevent conversational fillers
 			const response = await this.llmService.chatCompletion(
 				[userMessage],
 				{
 					temperature: 0.7,
 					max_tokens: 4000,
-				}
+				},
+				true // Use system prompt
 			);
 
 			// Extract the AI's response
@@ -245,31 +300,28 @@ export default class LectureLensPlugin extends Plugin {
 				throw new Error("No valid response from AI");
 			}
 
-			// Step 3: Insert the response into the editor
-			modal.setStatusDone();
+			// Find the position of the image link in the document
+			const cursor = editor.getCursor();
+			const lineContent = editor.getLine(cursor.line);
+			const imageLinkIndex = lineContent.indexOf(imageLink);
+			
+			if (imageLinkIndex === -1) {
+				// Fallback: insert at cursor position
+				const insertPosition: EditorPosition = {
+					line: cursor.line + 1,
+					ch: 0,
+				};
+				editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
+			} else {
+				// Insert below the image line
+				const insertPosition: EditorPosition = {
+					line: cursor.line + 1,
+					ch: 0,
+				};
+				editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
+			}
 
-			// Get the end of the document
-			const lastLine = editor.lastLine();
-			const lastLineLength = editor.getLine(lastLine).length;
-
-			// Add a separator and the AI response
-			const separator = "\n\n---\n\n## 📝 AI Generated Lecture Notes\n\n";
-			const textToInsert = separator + aiResponse + "\n";
-
-			// Insert at the end of the document
-			editor.replaceRange(textToInsert, {
-				line: lastLine,
-				ch: lastLineLength,
-			});
-
-			// Close modal after a brief delay
-			setTimeout(() => {
-				modal.close();
-				new Notice(
-					"Analysis complete! Generated notes added to the end of the document",
-					5000
-				);
-			}, 500);
+			new Notice("Analysis complete", 3000);
 		} catch (error) {
 			// Handle errors
 			let errorMessage = "Unknown error";
@@ -282,14 +334,8 @@ export default class LectureLensPlugin extends Plugin {
 				errorMessage = error.message;
 			}
 
-			modal.setStatusError(errorMessage);
+			new Notice(`Analysis failed: ${errorMessage}`, 8000);
 			console.error("Analysis failed:", error);
-
-			// Close modal after showing error
-			setTimeout(() => {
-				modal.close();
-				new Notice(`❌ Analysis failed:\n${errorMessage}`, 8000);
-			}, 2000);
 		}
 	}
 }

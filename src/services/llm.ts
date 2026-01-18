@@ -369,7 +369,7 @@ content: text,
 public static createSystemPrompt(): ChatMessage {
 return {
 role: "system",
-content: "You are a helpful assistant that analyzes images. Output ONLY the markdown content requested. Do NOT start with conversational phrases like 'Certainly', 'Sure', 'Here is', or 'Here's the'. Do NOT use framing lines like '---' or '```markdown' unless specifically asked. Do NOT add explanations about what you're doing. Just provide the direct markdown output.",
+content: "You are a helpful assistant that analyzes images. Output ONLY the markdown content requested. Do NOT start with conversational phrases like 'Certainly', 'Sure', 'Here is', or 'Here's'. Do NOT use framing lines like '---' or '```markdown' unless specifically asked. Do NOT add explanations about what you're doing. Just provide the direct markdown output.",
 };
 }
 }

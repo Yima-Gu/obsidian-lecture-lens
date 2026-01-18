@@ -300,26 +300,13 @@ export default class LectureLensPlugin extends Plugin {
 				throw new Error("No valid response from AI");
 			}
 
-			// Find the position of the image link in the document
+			// Insert AI response below the image line
 			const cursor = editor.getCursor();
-			const lineContent = editor.getLine(cursor.line);
-			const imageLinkIndex = lineContent.indexOf(imageLink);
-			
-			if (imageLinkIndex === -1) {
-				// Fallback: insert at cursor position
-				const insertPosition: EditorPosition = {
-					line: cursor.line + 1,
-					ch: 0,
-				};
-				editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
-			} else {
-				// Insert below the image line
-				const insertPosition: EditorPosition = {
-					line: cursor.line + 1,
-					ch: 0,
-				};
-				editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
-			}
+			const insertPosition: EditorPosition = {
+				line: cursor.line + 1,
+				ch: 0,
+			};
+			editor.replaceRange("\n" + aiResponse + "\n", insertPosition);
 
 			new Notice("Analysis complete", 3000);
 		} catch (error) {

@@ -1,8 +1,9 @@
-import { MarkdownView, Notice, Plugin } from "obsidian";
+import { Editor, EditorPosition, MarkdownView, Notice, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, LectureLensSettingTab, LectureLensSettings } from "./settings";
 import { LLMService, LLMServiceError } from "./services/llm";
 import { ImageExtractor } from "./services/imageExtractor";
 import { AnalysisModal } from "./ui/analysisModal";
+import { AskImageModal } from "./ui/askImageModal";
 
 // Plugin entry point for Lecture Lens.
 export default class LectureLensPlugin extends Plugin {
@@ -27,7 +28,12 @@ export default class LectureLensPlugin extends Plugin {
 		
 		// Add ribbon icon for quick analysis
 		this.addRibbonIcon("glasses", "Analyze note images", () => {
-			void this.analyzeCurrentNote();
+			const modal = new AskImageModal(
+				this.app,
+				this.settings.promptTemplates,
+				(prompt) => void this.analyzeCurrentNote(prompt)
+			);
+			modal.open();
 		});
 		
 		// Add test command for LLM connectivity
@@ -42,6 +48,20 @@ export default class LectureLensPlugin extends Plugin {
 			id: "test-image-extraction",
 			name: "Test image extraction from current note",
 			callback: () => this.testImageExtraction(),
+		});
+
+		// Batch-process each image in the note individually
+		this.addCommand({
+			id: "batch-analyze-images",
+			name: "Analyze all images in note (one by one)",
+			callback: () => {
+				const modal = new AskImageModal(
+					this.app,
+					this.settings.promptTemplates,
+					(prompt) => void this.batchAnalyzeImages(prompt)
+				);
+				modal.open();
+			},
 		});
 	}
 
@@ -176,9 +196,10 @@ export default class LectureLensPlugin extends Plugin {
 	}
 
 	/**
-	 * Main analysis workflow: Extract images from the current note and generate lecture notes
+	 * Main analysis workflow: Extract images from the current note and generate lecture notes.
+	 * Streams the LLM response directly into the editor for a typewriter effect.
 	 */
-	private async analyzeCurrentNote(): Promise<void> {
+	private async analyzeCurrentNote(prompt: string): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 
 		if (!activeFile) {
@@ -198,6 +219,9 @@ export default class LectureLensPlugin extends Plugin {
 		const modal = new AnalysisModal(this.app);
 		modal.open();
 
+		// eslint-disable-next-line obsidianmd/ui/sentence-case
+		const thinkingNotice = new Notice("🤔 Thinking…", 0);
+
 		try {
 			// Step 1: Find and extract images
 			modal.setStatusFindingImages();
@@ -209,18 +233,18 @@ export default class LectureLensPlugin extends Plugin {
 
 			// Check if any images were found
 			if (imageData.length === 0) {
+				thinkingNotice.hide();
 				modal.close();
 				new Notice("No images found in the current note", 5000);
 				return;
 			}
 
-			// Step 2: Call LLM for analysis
+			// Step 2: Prepare multimodal message
 			modal.setStatusAnalyzing();
 
-			// Create multimodal message with images
 			const userMessage = LLMService.createMultimodalMessage(
 				"user",
-				"Please generate structured lecture notes based on these images. Analyze the content carefully and create clear, well-organized notes with proper headings, bullet points, and key concepts.",
+				prompt,
 				imageData.map((img) => ({
 					base64: img.base64,
 					mimeType: img.mimeType,
@@ -228,41 +252,42 @@ export default class LectureLensPlugin extends Plugin {
 				}))
 			);
 
-			// Make API call
-			const response = await this.llmService.chatCompletion(
-				[userMessage],
-				{
-					temperature: 0.7,
-					max_tokens: 4000,
-				}
-			);
-
-			// Extract the AI's response
-			const firstChoice = response.choices[0];
-			const aiResponse = firstChoice?.message?.content;
-
-			if (!aiResponse || typeof aiResponse !== "string") {
-				throw new Error("No valid response from AI");
-			}
-
-			// Step 3: Insert the response into the editor
-			modal.setStatusDone();
-
-			// Get the end of the document
+			// Step 3: Insert separator at the end of the document
 			const lastLine = editor.lastLine();
 			const lastLineLength = editor.getLine(lastLine).length;
+			const header = "\n\n---\n\n## 📝 AI Generated Lecture Notes\n\n";
+			editor.replaceRange(header, { line: lastLine, ch: lastLineLength });
 
-			// Add a separator and the AI response
-			const separator = "\n\n---\n\n## 📝 AI Generated Lecture Notes\n\n";
-			const textToInsert = separator + aiResponse + "\n";
+			// Track the position where we'll append streaming chunks
+			let insertPos = this.advancePosition(
+				{ line: lastLine, ch: lastLineLength },
+				header
+			);
 
-			// Insert at the end of the document
-			editor.replaceRange(textToInsert, {
-				line: lastLine,
-				ch: lastLineLength,
-			});
+			// Step 4: Stream the response into the editor
+			let firstChunk = true;
+			for await (const chunk of this.llmService.chatCompletionStream(
+				[userMessage],
+				{ temperature: 0.7, max_tokens: 4000 }
+			)) {
+				if (firstChunk) {
+					thinkingNotice.hide();
+					firstChunk = false;
+				}
+				editor.replaceRange(chunk, insertPos);
+				insertPos = this.advancePosition(insertPos, chunk);
+			}
 
-			// Close modal after a brief delay
+			if (firstChunk) {
+				// No chunks received
+				thinkingNotice.hide();
+				throw new Error("No response received from AI");
+			}
+
+			// Add a trailing newline after the streamed content
+			editor.replaceRange("\n", insertPos);
+
+			modal.setStatusDone();
 			setTimeout(() => {
 				modal.close();
 				new Notice(
@@ -271,7 +296,8 @@ export default class LectureLensPlugin extends Plugin {
 				);
 			}, 500);
 		} catch (error) {
-			// Handle errors
+			thinkingNotice.hide();
+
 			let errorMessage = "Unknown error";
 			if (error instanceof LLMServiceError) {
 				errorMessage = error.message;
@@ -285,11 +311,149 @@ export default class LectureLensPlugin extends Plugin {
 			modal.setStatusError(errorMessage);
 			console.error("Analysis failed:", error);
 
-			// Close modal after showing error
 			setTimeout(() => {
 				modal.close();
 				new Notice(`❌ Analysis failed:\n${errorMessage}`, 8000);
 			}, 2000);
 		}
+	}
+
+	/**
+	 * Batch analysis: process each image in the note individually, inserting
+	 * streamed notes directly below each image reference.
+	 */
+	private async batchAnalyzeImages(prompt: string): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile) {
+			new Notice("No active file. Please open a note first.", 5000);
+			return;
+		}
+
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeView) {
+			new Notice("No active Markdown view found.", 5000);
+			return;
+		}
+
+		const editor = activeView.editor;
+
+		// Extract image references from the initial content
+		const content = await this.app.vault.read(activeFile);
+		const references = this.imageExtractor.extractImageReferences(content);
+
+		if (references.length === 0) {
+			new Notice("No images found in the current note", 5000);
+			return;
+		}
+
+		let successCount = 0;
+		let errorCount = 0;
+
+		for (let i = 0; i < references.length; i++) {
+			const reference = references[i]!;
+			const progressNotice = new Notice(
+				`🖼️ Processing image ${i + 1} of ${references.length}…`,
+				0
+			);
+
+			try {
+				// Resolve and read the image
+				const file = this.imageExtractor.resolveImageFile(
+					reference.path,
+					activeFile
+				);
+				if (!file) {
+					progressNotice.hide();
+					console.warn(`Image not found: ${reference.path}`);
+					errorCount++;
+					continue;
+				}
+
+				const { base64, mimeType } =
+					await this.imageExtractor.readImageAsBase64(file);
+
+				const userMessage = LLMService.createMultimodalMessage(
+					"user",
+					prompt,
+					[{ base64, mimeType, detail: "high" as const }]
+				);
+
+				// Find the line of this image reference in the current editor content
+				const imageLine = this.findImageLine(editor, reference.originalText);
+
+				// Insert a section header after the image line
+				const imageLineContent = editor.getLine(imageLine);
+				const header = "\n\n> [!note]+ AI Analysis\n> ";
+				editor.replaceRange(header, {
+					line: imageLine,
+					ch: imageLineContent.length,
+				});
+
+				// Track where to append stream chunks
+				let insertPos = this.advancePosition(
+					{ line: imageLine, ch: imageLineContent.length },
+					header
+				);
+
+				// Stream response below the image
+				for await (const chunk of this.llmService.chatCompletionStream(
+					[userMessage],
+					{ temperature: 0.7, max_tokens: 2000 }
+				)) {
+					// Indent continuation lines inside the callout block
+					const indentedChunk = chunk.replace(/\n/g, "\n> ");
+					editor.replaceRange(indentedChunk, insertPos);
+					insertPos = this.advancePosition(insertPos, indentedChunk);
+				}
+
+				// Close callout block with a blank line
+				editor.replaceRange("\n\n", insertPos);
+
+				successCount++;
+			} catch (error) {
+				console.error(
+					`Failed to analyze image ${reference.path}:`,
+					error
+				);
+				errorCount++;
+			} finally {
+				progressNotice.hide();
+			}
+		}
+
+		new Notice(
+			`✅ Batch analysis complete! ${successCount} succeeded${errorCount > 0 ? `, ${errorCount} failed` : ""}.`,
+			5000
+		);
+	}
+
+	/**
+	 * Advance an EditorPosition by the characters in the given string,
+	 * accounting for embedded newlines.
+	 */
+	private advancePosition(pos: EditorPosition, text: string): EditorPosition {
+		const lines = text.split("\n");
+		if (lines.length === 1) {
+			return { line: pos.line, ch: pos.ch + text.length };
+		}
+		return {
+			line: pos.line + lines.length - 1,
+			ch: lines[lines.length - 1]?.length ?? 0,
+		};
+	}
+
+	/**
+	 * Find the line number of the first line that contains the given text.
+	 * Falls back to the last line if the text is not found.
+	 */
+	private findImageLine(editor: Editor, originalText: string): number {
+		const lineCount = editor.lineCount();
+		for (let i = 0; i < lineCount; i++) {
+			if (editor.getLine(i).includes(originalText)) {
+				return i;
+			}
+		}
+		return editor.lastLine();
 	}
 }

@@ -68,3 +68,34 @@ If your plugin does not need CSS, delete this file.
 	}
 }
 
+/* Ask Image Modal Styles */
+.lecture-lens-ask-modal {
+	padding: 20px;
+	min-width: 400px;
+}
+
+.lecture-lens-textarea-wrapper {
+	margin: 12px 0;
+}
+
+.lecture-lens-prompt-textarea {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+}
+
+.lecture-lens-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+/* Template settings section */
+.lecture-lens-template-setting {
+	flex-wrap: wrap;
+}
+
+.lecture-lens-template-textarea {
+	width: 100%;
+}

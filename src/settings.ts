@@ -5,11 +5,17 @@ import { LLMServiceError } from "./services/llm";
 
 export type ApiProvider = "OpenAI" | "Gemini" | "Custom";
 
+export interface PromptTemplate {
+	name: string;
+	prompt: string;
+}
+
 export interface LectureLensSettings {
 	apiProvider: ApiProvider;
 	apiKey: string;
 	baseUrl: string;
 	modelName: string;
+	promptTemplates: PromptTemplate[];
 }
 
 export const DEFAULT_SETTINGS: LectureLensSettings = {
@@ -17,6 +23,20 @@ export const DEFAULT_SETTINGS: LectureLensSettings = {
 	apiKey: "",
 	baseUrl: "https://api.openai.com/v1",
 	modelName: "gpt-4o",
+	promptTemplates: [
+		{
+			name: "Lecture Notes",
+			prompt: "Analyze this slide and extract structured notes.",
+		},
+		{
+			name: "Extract Math",
+			prompt: "Extract all mathematical formulas and output them strictly in LaTeX block format.",
+		},
+		{
+			name: "Chart to Mermaid",
+			prompt: "Analyze this flowchart/diagram and convert it into Mermaid.js code.",
+		},
+	],
 };
 
 export class LectureLensSettingTab extends PluginSettingTab {
@@ -128,7 +148,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 							});
 
 							const firstChoice = response.choices[0];
-							const message = firstChoice?.message?.content || "No response";
+							const rawContent = firstChoice?.message?.content;
+							const message = typeof rawContent === "string" ? rawContent : "No response";
 							new Notice(
 								`✅ Connection successful!\nModel: ${response.model}\nResponse: ${message}`,
 								5000
@@ -176,5 +197,69 @@ export class LectureLensSettingTab extends PluginSettingTab {
 						}
 					})
 			);
+
+		// Prompt templates section
+		new Setting(containerEl).setName("Prompt templates").setHeading();
+		containerEl.createEl("p", {
+			text: "Customize the preset prompts available in the analysis modal.",
+			cls: "setting-item-description",
+		});
+
+		const templatesContainer = containerEl.createEl("div");
+
+		const renderTemplates = () => {
+			templatesContainer.empty();
+
+			this.plugin.settings.promptTemplates.forEach((template, index) => {
+				const templateSetting = new Setting(templatesContainer)
+					.addText((text) =>
+						text
+							.setPlaceholder("Template name")
+							.setValue(template.name)
+							.onChange(async (value) => {
+								this.plugin.settings.promptTemplates[index]!.name = value;
+								await this.plugin.saveSettings();
+							})
+					)
+					.addTextArea((textArea) => {
+						textArea
+							.setPlaceholder("Prompt text")
+							.setValue(template.prompt)
+							.onChange(async (value) => {
+								this.plugin.settings.promptTemplates[index]!.prompt = value;
+								await this.plugin.saveSettings();
+							});
+						textArea.inputEl.rows = 2;
+						textArea.inputEl.addClass("lecture-lens-template-textarea");
+						return textArea;
+					})
+					.addButton((btn) =>
+						btn
+							.setIcon("trash")
+							.setTooltip("Remove template")
+							.onClick(async () => {
+								this.plugin.settings.promptTemplates.splice(index, 1);
+								await this.plugin.saveSettings();
+								renderTemplates();
+							})
+					);
+				templateSetting.settingEl.addClass("lecture-lens-template-setting");
+			});
+
+			new Setting(templatesContainer).addButton((btn) =>
+				btn
+					.setButtonText("Add template")
+					.onClick(async () => {
+						this.plugin.settings.promptTemplates.push({
+							name: "New template",
+							prompt: "",
+						});
+						await this.plugin.saveSettings();
+						renderTemplates();
+					})
+			);
+		};
+
+		renderTemplates();
 	}
 }

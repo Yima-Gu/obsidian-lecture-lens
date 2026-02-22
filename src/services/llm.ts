@@ -193,6 +193,114 @@ throw lastError ?? new LLMServiceError("Request failed after all retries");
 }
 
 /**
+ * Make a streaming chat completion request to the LLM API.
+ * Yields text chunks as they arrive from the server-sent events stream.
+ * Uses native fetch (instead of requestUrl) to support streaming responses.
+ *
+ * @param messages - Array of chat messages
+ * @param options - Optional parameters for the API request
+ * @yields Text chunks as they arrive
+ * @throws LLMServiceError on API errors or network failures
+ */
+public async *chatCompletionStream(
+messages: ChatMessage[],
+options?: {
+temperature?: number;
+max_tokens?: number;
+top_p?: number;
+}
+) {
+this.validateConfig();
+
+const url = `${this.config.baseUrl}/chat/completions`;
+const body: ChatCompletionRequest = {
+model: this.config.modelName,
+messages,
+stream: true,
+...options,
+};
+
+let response: Response;
+try {
+// fetch is used intentionally here because requestUrl does not support
+// streaming responses (server-sent events). This is safe in Electron.
+// eslint-disable-next-line no-restricted-globals
+response = await fetch(url, {
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+Authorization: `Bearer ${this.config.apiKey}`,
+},
+body: JSON.stringify(body),
+});
+} catch (error) {
+throw new LLMServiceError(
+`Network error: ${error instanceof Error ? error.message : "Unknown error"}`
+);
+}
+
+if (!response.ok) {
+let errorMessage = `API request failed with status ${response.status}`;
+try {
+const errorData = (await response.json()) as unknown;
+if (
+errorData &&
+typeof errorData === "object" &&
+"error" in errorData &&
+errorData.error &&
+typeof errorData.error === "object" &&
+"message" in errorData.error &&
+typeof errorData.error.message === "string"
+) {
+errorMessage = (errorData.error as { message: string }).message;
+}
+} catch {
+// ignore JSON parse errors
+}
+throw new LLMServiceError(errorMessage, response.status);
+}
+
+if (!response.body) {
+throw new LLMServiceError("Response body is null");
+}
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+let buffer = "";
+
+try {
+while (true) {
+const { done, value } = await reader.read();
+if (done) break;
+
+buffer += decoder.decode(value, { stream: true });
+const lines = buffer.split("\n");
+buffer = lines.pop() ?? "";
+
+for (const line of lines) {
+const trimmed = line.trim();
+if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+const data = trimmed.slice(6);
+if (data === "[DONE]") return;
+
+try {
+const parsed = JSON.parse(data) as {
+choices: Array<{ delta: { content?: string } }>;
+};
+const content = parsed.choices[0]?.delta?.content;
+if (content) yield content;
+} catch {
+// Skip malformed SSE data lines
+}
+}
+}
+} finally {
+reader.releaseLock();
+}
+}
+
+/**
  * Make the actual HTTP request to the API
  */
 private async makeRequest(

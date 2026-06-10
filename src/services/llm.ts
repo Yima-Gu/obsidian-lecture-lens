@@ -460,4 +460,53 @@ role,
 content: text,
 };
 }
+
+/**
+ * Create embeddings for one or more text inputs via OpenAI-compatible API.
+ */
+public async createEmbeddings(
+input: string | string[],
+model: string
+): Promise<number[][]> {
+this.validateConfig();
+
+const url = `${this.config.baseUrl}/embeddings`;
+const requestParams: RequestUrlParam = {
+url,
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+Authorization: `Bearer ${this.config.apiKey}`,
+},
+body: JSON.stringify({ model, input }),
+throw: false,
+};
+
+const response = await requestUrl(requestParams);
+if (response.status < 200 || response.status >= 300) {
+let errorMessage = `Embeddings request failed with status ${response.status}`;
+try {
+const errorData = response.json as ApiErrorResponse;
+if (errorData?.error?.message) {
+errorMessage = errorData.error.message;
+}
+} catch {
+if (response.text) {
+errorMessage = `${errorMessage}: ${response.text}`;
+}
+}
+throw new LLMServiceError(errorMessage, response.status);
+}
+
+const data = response.json as {
+data: Array<{ embedding: number[]; index: number }>;
+};
+if (!data.data || data.data.length === 0) {
+throw new LLMServiceError("Embeddings response missing data");
+}
+
+return data.data
+.sort((a, b) => a.index - b.index)
+.map((item) => item.embedding);
+}
 }

@@ -99,3 +99,69 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-template-textarea {
 	width: 100%;
 }
+
+/* Chat sidebar */
+.lecture-lens-chat-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 12px;
+	box-sizing: border-box;
+}
+
+.lecture-lens-chat-title {
+	margin: 0 0 8px;
+}
+
+.lecture-lens-chat-scope {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-bottom: 8px;
+}
+
+.lecture-lens-chat-messages {
+	flex: 1;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 8px;
+	margin-bottom: 8px;
+	min-height: 120px;
+}
+
+.lecture-lens-chat-message {
+	margin-bottom: 10px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-message:last-child {
+	border-bottom: none;
+}
+
+.lecture-lens-chat-role {
+	font-size: 0.75em;
+	font-weight: 600;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.lecture-lens-chat-content {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.lecture-lens-chat-input-row {
+	margin-bottom: 8px;
+}
+
+.lecture-lens-chat-input {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+}
+
+.lecture-lens-chat-buttons {
+	display: flex;
+	gap: 8px;
+}

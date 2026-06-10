@@ -265,4 +265,77 @@ export class ImageExtractor {
 
 		return imageDataArray;
 	}
+
+	/**
+	 * Extract a single image from its link text.
+	 */
+	public async extractOneImage(
+		linkText: string,
+		sourceFile?: TFile
+	): Promise<ImageData | null> {
+		let imagePath: string | null = null;
+		let altText: string | undefined;
+		let linkType: "wiki" | "markdown";
+
+		const wikiMatch = linkText.match(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+		if (wikiMatch) {
+			imagePath = wikiMatch[1]?.trim() ?? null;
+			altText = wikiMatch[2]?.trim();
+			linkType = "wiki";
+		} else {
+			const markdownMatch = linkText.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+			if (markdownMatch) {
+				altText = markdownMatch[1]?.trim() || undefined;
+				imagePath = markdownMatch[2]?.trim() ?? null;
+				linkType = "markdown";
+			} else {
+				return null;
+			}
+		}
+
+		if (!imagePath) return null;
+
+		try {
+			const file = this.resolveImageFile(imagePath, sourceFile);
+			if (!file) return null;
+
+			const { base64, mimeType, size } = await this.readImageAsBase64(file);
+			return {
+				reference: {
+					originalText: linkText,
+					path: imagePath,
+					altText,
+					linkType,
+				},
+				base64,
+				mimeType,
+				size,
+			};
+		} catch (error) {
+			console.error(`Failed to read image ${imagePath}:`, error);
+			return null;
+		}
+	}
+
+	/**
+	 * Save binary image data into the vault and return the created file.
+	 */
+	public async saveImageBytes(
+		arrayBuffer: ArrayBuffer,
+		mimeType: string,
+		folderPath: string
+	): Promise<TFile | null> {
+		const vault = this.app.vault;
+		if (!(await vault.adapter.exists(folderPath))) {
+			await vault.createFolder(folderPath);
+		}
+
+		const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+		const fileName = `lecture-lens-${Date.now()}.${ext}`;
+		const filePath = `${folderPath}/${fileName}`;
+
+		await vault.createBinary(filePath, arrayBuffer);
+		const file = vault.getAbstractFileByPath(filePath);
+		return file instanceof TFile ? file : null;
+	}
 }

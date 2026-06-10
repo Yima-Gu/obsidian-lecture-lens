@@ -16,6 +16,13 @@ export interface LectureLensSettings {
 	baseUrl: string;
 	modelName: string;
 	promptTemplates: PromptTemplate[];
+	courseFolderPath: string;
+	embeddingModelName: string;
+	ragEnabled: boolean;
+	ragTopK: number;
+	enablePasteOcr: boolean;
+	pasteImageFolder: string;
+	autoAnalyzeOnPaste: boolean;
 }
 
 export const DEFAULT_SETTINGS: LectureLensSettings = {
@@ -37,6 +44,13 @@ export const DEFAULT_SETTINGS: LectureLensSettings = {
 			prompt: "Analyze this flowchart/diagram and convert it into Mermaid.js code.",
 		},
 	],
+	courseFolderPath: "",
+	embeddingModelName: "text-embedding-3-small",
+	ragEnabled: true,
+	ragTopK: 5,
+	enablePasteOcr: true,
+	pasteImageFolder: "attachments",
+	autoAnalyzeOnPaste: false,
 };
 
 export class LectureLensSettingTab extends PluginSettingTab {
@@ -261,5 +275,127 @@ export class LectureLensSettingTab extends PluginSettingTab {
 		};
 
 		renderTemplates();
+
+		new Setting(containerEl).setName("Course context (RAG)").setHeading();
+
+		new Setting(containerEl)
+			.setName("Course folder")
+			.setDesc("Vault path to the course folder used for retrieval, e.g. Courses/Linear Algebra.")
+			.addText((text) =>
+				text
+					.setPlaceholder("Courses/My Course")
+					.setValue(this.plugin.settings.courseFolderPath)
+					.onChange(async (value) => {
+						this.plugin.settings.courseFolderPath = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Embedding model")
+			.setDesc("Model used to build and query the course index.")
+			.addText((text) =>
+				text
+					.setPlaceholder("text-embedding-3-small")
+					.setValue(this.plugin.settings.embeddingModelName)
+					.onChange(async (value) => {
+						this.plugin.settings.embeddingModelName = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Enable RAG in chat")
+			.setDesc("Include retrieved course notes as context in the chat sidebar.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.ragEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.ragEnabled = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Retrieval top K")
+			.setDesc("Number of note chunks to inject per chat message.")
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 10, 1)
+					.setValue(this.plugin.settings.ragTopK)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.ragTopK = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Rebuild course index")
+			.setDesc("Scan the course folder and rebuild the local embedding index.")
+			.addButton((button) =>
+				button
+					.setButtonText("Rebuild index")
+					.setCta()
+					.onClick(async () => {
+						const folder = this.plugin.settings.courseFolderPath.trim();
+						if (!folder) {
+							new Notice("Set a course folder path first.", 5000);
+							return;
+						}
+						button.setDisabled(true).setButtonText("Indexing…");
+						try {
+							const count = await this.plugin.ragService.buildIndex(
+								folder,
+								this.plugin.settings.embeddingModelName
+							);
+							new Notice(`✅ Index rebuilt with ${count} chunks.`, 5000);
+						} catch (error) {
+							const msg = error instanceof Error ? error.message : "Unknown error";
+							new Notice(`❌ Index rebuild failed: ${msg}`, 8000);
+						} finally {
+							button.setDisabled(false).setButtonText("Rebuild index");
+						}
+					})
+			);
+
+		new Setting(containerEl).setName("Clipboard OCR").setHeading();
+
+		new Setting(containerEl)
+			.setName("Enable paste OCR")
+			.setDesc("When pasting an image into a note, save it and optionally analyze with AI.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enablePasteOcr)
+					.onChange(async (value) => {
+						this.plugin.settings.enablePasteOcr = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Paste image folder")
+			.setDesc("Folder where pasted screenshots are saved.")
+			.addText((text) =>
+				text
+					.setPlaceholder("attachments")
+					.setValue(this.plugin.settings.pasteImageFolder)
+					.onChange(async (value) => {
+						this.plugin.settings.pasteImageFolder = value.trim() || "attachments";
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Auto-analyze on paste")
+			.setDesc("Skip the prompt modal and analyze immediately using the first template.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoAnalyzeOnPaste)
+					.onChange(async (value) => {
+						this.plugin.settings.autoAnalyzeOnPaste = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }

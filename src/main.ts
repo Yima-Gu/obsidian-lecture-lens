@@ -103,7 +103,7 @@ export default class LectureLensPlugin extends Plugin {
 	onunload() {}
 
 	getLocale(): ResolvedLocale {
-		return resolveLocale(this.settings.uiLanguage);
+		return resolveLocale(this.settings.uiLanguage, this.app);
 	}
 
 	tr(key: TranslationKey, params?: Record<string, string | number>): string {

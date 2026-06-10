@@ -4,14 +4,14 @@ const ENCRYPTED_PREFIX = "enc:v1:";
 
 type SafeStorage = {
 	isEncryptionAvailable(): boolean;
-	encryptString(plainText: string): Buffer;
-	decryptString(encrypted: Buffer): string;
+	encryptString(plainText: string): { toString(encoding: "base64"): string };
+	decryptString(encrypted: Uint8Array): string;
 };
 
 function getSafeStorage(): SafeStorage | null {
 	if (!Platform.isDesktopApp) return null;
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		// eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
 		const electron = require("electron") as { safeStorage?: SafeStorage };
 		const safeStorage = electron.safeStorage;
 		if (!safeStorage?.isEncryptionAvailable()) return null;
@@ -49,7 +49,8 @@ export function decryptSecret(stored: string): string {
 
 	try {
 		const payload = stored.slice(ENCRYPTED_PREFIX.length);
-		return storage.decryptString(Buffer.from(payload, "base64"));
+		const bytes = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
+		return storage.decryptString(bytes);
 	} catch {
 		return "";
 	}

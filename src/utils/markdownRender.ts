@@ -1,6 +1,7 @@
-import { Component, MarkdownRenderer } from "obsidian";
+import { App, Component, MarkdownRenderer } from "obsidian";
 
 export async function renderChatMarkdown(
+	app: App,
 	component: Component,
 	container: HTMLElement,
 	markdown: string,
@@ -8,10 +9,11 @@ export async function renderChatMarkdown(
 ): Promise<void> {
 	container.empty();
 	container.addClass("markdown-rendered");
-	await MarkdownRenderer.renderMarkdown(markdown, container, sourcePath, component);
+	await MarkdownRenderer.render(app, markdown, container, sourcePath, component);
 }
 
 export function debounceRender(
+	app: App,
 	component: Component,
 	container: HTMLElement,
 	markdown: string,
@@ -24,6 +26,6 @@ export function debounceRender(
 	}
 	timerRef.id = window.setTimeout(() => {
 		timerRef.id = null;
-		void renderChatMarkdown(component, container, markdown, sourcePath);
+		void renderChatMarkdown(app, component, container, markdown, sourcePath);
 	}, delayMs);
 }

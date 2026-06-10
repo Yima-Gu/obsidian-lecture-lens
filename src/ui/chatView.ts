@@ -478,7 +478,7 @@ export class ChatView extends ItemView {
 		if (content) {
 			const textEl = contentEl.createEl("div", { cls: "lecture-lens-chat-text" });
 			const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
-			await renderChatMarkdown(this, textEl, content, sourcePath);
+			await renderChatMarkdown(this.app, this, textEl, content, sourcePath);
 		}
 
 		this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -538,7 +538,7 @@ export class ChatView extends ItemView {
 				max_tokens: 2000,
 			})) {
 				fullResponse += chunk;
-				debounceRender(this, contentEl, fullResponse, sourcePath, this.streamRenderTimer, 180);
+				debounceRender(this.app, this, contentEl, fullResponse, sourcePath, this.streamRenderTimer, 180);
 				this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 			}
 
@@ -546,7 +546,7 @@ export class ChatView extends ItemView {
 				window.clearTimeout(this.streamRenderTimer.id);
 				this.streamRenderTimer.id = null;
 			}
-			await renderChatMarkdown(this, contentEl, fullResponse, sourcePath);
+			await renderChatMarkdown(this.app, this, contentEl, fullResponse, sourcePath);
 			assistantMsg.removeClass("is-streaming");
 
 			const meta = assistantMsg.querySelector(".lecture-lens-chat-message-meta");

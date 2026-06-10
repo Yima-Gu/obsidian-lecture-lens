@@ -15,12 +15,13 @@ export function registerContextMenu(plugin: LectureLensPlugin): void {
 
 			menu.addItem((item) => {
 				item
-					.setTitle("Ask AI about image")
+					.setTitle(plugin.tr("contextMenu.askAiAboutImage"))
 					.setIcon("glasses")
 					.onClick(() => {
 						const modal = new AskImageModal(
 							plugin.app,
 							plugin.settings.promptTemplates,
+							plugin.tr.bind(plugin),
 							(prompt) => {
 								void analyzeSingleImage(
 									plugin.getAnalysisContext(),

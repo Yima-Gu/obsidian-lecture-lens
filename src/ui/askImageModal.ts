@@ -1,6 +1,7 @@
 // The title uses the plugin name which requires capital letters
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { App, Modal, Notice, Setting } from "obsidian";
+import { TranslationKey } from "../i18n";
 import { PromptTemplate } from "../settings";
 
 /**
@@ -10,15 +11,18 @@ import { PromptTemplate } from "../settings";
 export class AskImageModal extends Modal {
 	private selectedPrompt: string;
 	private readonly templates: PromptTemplate[];
+	private readonly tr: (key: TranslationKey, params?: Record<string, string | number>) => string;
 	private readonly onSubmit: (prompt: string) => void;
 
 	constructor(
 		app: App,
 		templates: PromptTemplate[],
+		tr: (key: TranslationKey, params?: Record<string, string | number>) => string,
 		onSubmit: (prompt: string) => void
 	) {
 		super(app);
 		this.templates = templates;
+		this.tr = tr;
 		this.selectedPrompt = templates[0]?.prompt ?? "";
 		this.onSubmit = onSubmit;
 	}
@@ -28,25 +32,21 @@ export class AskImageModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("lecture-lens-ask-modal");
 
-		contentEl.createEl("h2", { text: "Lecture Lens: Analyze images" });
+		contentEl.createEl("h2", { text: this.tr("modal.analyzeImages.title") });
 
-		// Textarea for the prompt (declared before the dropdown so the
-		// dropdown's onChange callback can reference it)
 		let textAreaEl: HTMLTextAreaElement;
 
 		if (this.templates.length > 0) {
 			new Setting(contentEl)
-				.setName("Prompt template")
-				.setDesc("Select a preset or customize the prompt below.")
+				.setName(this.tr("modal.analyzeImages.templateName"))
+				.setDesc(this.tr("modal.analyzeImages.templateDesc"))
 				.addDropdown((dropdown) => {
 					for (const template of this.templates) {
 						dropdown.addOption(template.name, template.name);
 					}
 					dropdown.setValue(this.templates[0]?.name ?? "");
 					dropdown.onChange((value) => {
-						const template = this.templates.find(
-							(t) => t.name === value
-						);
+						const template = this.templates.find((item) => item.name === value);
 						if (template) {
 							this.selectedPrompt = template.prompt;
 							if (textAreaEl) {
@@ -57,7 +57,6 @@ export class AskImageModal extends Modal {
 				});
 		}
 
-		// Prompt textarea
 		const textAreaWrapper = contentEl.createEl("div", {
 			cls: "lecture-lens-textarea-wrapper",
 		});
@@ -66,27 +65,26 @@ export class AskImageModal extends Modal {
 		});
 		textAreaEl.value = this.selectedPrompt;
 		textAreaEl.rows = 5;
-		textAreaEl.placeholder = "Enter your prompt…";
+		textAreaEl.placeholder = this.tr("modal.analyzeImages.promptPlaceholder");
 		textAreaEl.addEventListener("input", () => {
 			this.selectedPrompt = textAreaEl.value;
 		});
 
-		// Action buttons
 		const buttonRow = contentEl.createEl("div", {
 			cls: "lecture-lens-modal-buttons",
 		});
 
-		const cancelBtn = buttonRow.createEl("button", { text: "Cancel" });
+		const cancelBtn = buttonRow.createEl("button", { text: this.tr("modal.analyzeImages.cancel") });
 		cancelBtn.addEventListener("click", () => this.close());
 
 		const analyzeBtn = buttonRow.createEl("button", {
-			text: "Analyze",
+			text: this.tr("modal.analyzeImages.analyze"),
 			cls: "mod-cta",
 		});
 		analyzeBtn.addEventListener("click", () => {
 			const prompt = this.selectedPrompt.trim();
 			if (!prompt) {
-				new Notice("Please enter a prompt before analyzing.", 3000);
+				new Notice(this.tr("modal.analyzeImages.emptyPrompt"), 3000);
 				return;
 			}
 			this.close();

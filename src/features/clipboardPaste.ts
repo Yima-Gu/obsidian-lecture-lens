@@ -31,7 +31,7 @@ async function handlePasteImage(
 ): Promise<void> {
 	const file = item.getAsFile();
 	if (!file) {
-		new Notice("Could not read pasted image.", 5000);
+		new Notice(plugin.tr("notice.couldNotReadPastedImage"), 5000);
 		return;
 	}
 
@@ -44,7 +44,7 @@ async function handlePasteImage(
 	);
 
 	if (!saved) {
-		new Notice("Failed to save pasted image.", 5000);
+		new Notice(plugin.tr("notice.failedToSavePastedImage"), 5000);
 		return;
 	}
 
@@ -77,6 +77,7 @@ async function handlePasteImage(
 	const modal = new AskImageModal(
 		plugin.app,
 		plugin.settings.promptTemplates,
+		plugin.tr.bind(plugin),
 		runAnalysis
 	);
 	modal.open();

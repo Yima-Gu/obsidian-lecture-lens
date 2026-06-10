@@ -1,6 +1,7 @@
 // The title uses the plugin name "Lecture Lens" which requires capital letters
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { Modal, App } from "obsidian";
+import { TranslationKey } from "../i18n";
 
 /**
  * Modal to display analysis progress and status
@@ -8,9 +9,14 @@ import { Modal, App } from "obsidian";
 export class AnalysisModal extends Modal {
 	private statusEl: HTMLElement;
 	private currentStatus: string;
+	private readonly tr: (key: TranslationKey, params?: Record<string, string | number>) => string;
 
-	constructor(app: App) {
+	constructor(
+		app: App,
+		tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	) {
 		super(app);
+		this.tr = tr;
 		this.currentStatus = "";
 	}
 
@@ -19,18 +25,15 @@ export class AnalysisModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("lecture-lens-analysis-modal");
 
-		// Create title
 		const titleEl = contentEl.createEl("h2", {
-			text: "Lecture Lens Analysis",
+			text: this.tr("modal.analysis.title"),
 		});
 		titleEl.addClass("lecture-lens-modal-title");
 
-		// Create status container
 		this.statusEl = contentEl.createEl("div", {
 			cls: "lecture-lens-status-container",
 		});
 
-		// Create progress indicator
 		const progressEl = contentEl.createEl("div", {
 			cls: "lecture-lens-progress",
 		});
@@ -38,7 +41,6 @@ export class AnalysisModal extends Modal {
 			cls: "lecture-lens-progress-bar",
 		});
 
-		// Set initial status if provided
 		if (this.currentStatus) {
 			this.updateStatus(this.currentStatus);
 		}
@@ -49,10 +51,6 @@ export class AnalysisModal extends Modal {
 		contentEl.empty();
 	}
 
-	/**
-	 * Update the status message displayed in the modal
-	 * @param status - The status message to display (supports emoji)
-	 */
 	updateStatus(status: string): void {
 		this.currentStatus = status;
 		if (this.statusEl) {
@@ -60,30 +58,18 @@ export class AnalysisModal extends Modal {
 		}
 	}
 
-	/**
-	 * Set status to "Finding images..."
-	 */
 	setStatusFindingImages(): void {
-		this.updateStatus("🔍 Finding images...");
+		this.updateStatus(this.tr("modal.analysis.findingImages"));
 	}
 
-	/**
-	 * Set status to "AI Analyzing..."
-	 */
 	setStatusAnalyzing(): void {
-		this.updateStatus("🧠 AI Analyzing...");
+		this.updateStatus(this.tr("modal.analysis.analyzing"));
 	}
 
-	/**
-	 * Set status to "Done!"
-	 */
 	setStatusDone(): void {
-		this.updateStatus("✅ Done!");
+		this.updateStatus(this.tr("modal.analysis.done"));
 	}
 
-	/**
-	 * Set status to an error message
-	 */
 	setStatusError(message: string): void {
 		this.updateStatus(`❌ ${message}`);
 	}

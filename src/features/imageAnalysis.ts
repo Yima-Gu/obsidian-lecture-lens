@@ -1,5 +1,6 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { App, Editor, MarkdownView, Notice, TFile } from "obsidian";
+import { TranslationKey } from "../i18n";
 import { LLMService, LLMServiceError } from "../services/llm";
 import { ImageExtractor } from "../services/imageExtractor";
 import { LectureLensSettings } from "../settings";
@@ -11,6 +12,7 @@ export interface ImageAnalysisContext {
 	llmService: LLMService;
 	imageExtractor: ImageExtractor;
 	settings: LectureLensSettings;
+	tr: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }
 
 export async function analyzeCurrentNote(
@@ -19,21 +21,21 @@ export async function analyzeCurrentNote(
 ): Promise<void> {
 	const activeFile = ctx.app.workspace.getActiveFile();
 	if (!activeFile) {
-		new Notice("No active file. Please open a note first.", 5000);
+		new Notice(ctx.tr("notice.noActiveFile"), 5000);
 		return;
 	}
 
 	const activeView = ctx.app.workspace.getActiveViewOfType(MarkdownView);
 	if (!activeView) {
-		new Notice("No active Markdown view found.", 5000);
+		new Notice(ctx.tr("notice.noMarkdownView"), 5000);
 		return;
 	}
 
 	const editor = activeView.editor;
-	const modal = new AnalysisModal(ctx.app);
+	const modal = new AnalysisModal(ctx.app, ctx.tr);
 	modal.open();
 
-	const thinkingNotice = new Notice("🤔 Thinking…", 0);
+	const thinkingNotice = new Notice(ctx.tr("notice.thinking"), 0);
 
 	try {
 		modal.setStatusFindingImages();
@@ -43,7 +45,7 @@ export async function analyzeCurrentNote(
 		if (imageData.length === 0) {
 			thinkingNotice.hide();
 			modal.close();
-			new Notice("No images found in the current note", 5000);
+			new Notice(ctx.tr("notice.noImagesInNote"), 5000);
 			return;
 		}
 
@@ -60,7 +62,7 @@ export async function analyzeCurrentNote(
 
 		const lastLine = editor.lastLine();
 		const lastLineLength = editor.getLine(lastLine).length;
-		const header = "\n\n---\n\n## 📝 AI Generated Lecture Notes\n\n";
+		const header = `\n\n---\n\n${ctx.tr("generated.aiLectureNotes")}\n\n`;
 		editor.replaceRange(header, { line: lastLine, ch: lastLineLength });
 
 		let insertPos = advancePosition({ line: lastLine, ch: lastLineLength }, header);
@@ -80,23 +82,23 @@ export async function analyzeCurrentNote(
 
 		if (firstChunk) {
 			thinkingNotice.hide();
-			throw new Error("No response received from AI");
+			throw new Error(ctx.tr("notice.noAiResponse"));
 		}
 
 		editor.replaceRange("\n", insertPos);
 		modal.setStatusDone();
 		setTimeout(() => {
 			modal.close();
-			new Notice("Analysis complete! Generated notes added to the end of the document", 5000);
+			new Notice(ctx.tr("notice.analysisCompleteWithNotes"), 5000);
 		}, 500);
 	} catch (error) {
 		thinkingNotice.hide();
-		const errorMessage = formatError(error);
+		const errorMessage = formatError(error, ctx);
 		modal.setStatusError(errorMessage);
 		console.error("Analysis failed:", error);
 		setTimeout(() => {
 			modal.close();
-			new Notice(`❌ Analysis failed:\n${errorMessage}`, 8000);
+			new Notice(ctx.tr("notice.analysisFailedWithPrefix", { message: errorMessage }), 8000);
 		}, 2000);
 	}
 }
@@ -108,13 +110,13 @@ export async function analyzeSingleImage(
 	editor: Editor,
 	sourceFile: TFile
 ): Promise<void> {
-	const thinkingNotice = new Notice("🤔 Thinking…", 0);
+	const thinkingNotice = new Notice(ctx.tr("notice.thinking"), 0);
 
 	try {
 		const imageData = await ctx.imageExtractor.extractOneImage(imageLink, sourceFile);
 		if (!imageData) {
 			thinkingNotice.hide();
-			new Notice("Could not load the image", 5000);
+			new Notice(ctx.tr("notice.couldNotLoadImage"), 5000);
 			return;
 		}
 
@@ -126,7 +128,7 @@ export async function analyzeSingleImage(
 
 		const imageLine = findLineContaining(editor, imageLink);
 		const imageLineContent = editor.getLine(imageLine);
-		const header = "\n\n> [!note]+ AI Analysis\n> ";
+		const header = `\n\n${ctx.tr("generated.aiAnalysisCallout")}\n> `;
 		editor.replaceRange(header, { line: imageLine, ch: imageLineContent.length });
 
 		let insertPos = advancePosition({ line: imageLine, ch: imageLineContent.length }, header);
@@ -146,10 +148,10 @@ export async function analyzeSingleImage(
 		}
 
 		editor.replaceRange("\n\n", insertPos);
-		new Notice("Analysis complete", 3000);
+		new Notice(ctx.tr("notice.analysisComplete"), 3000);
 	} catch (error) {
 		thinkingNotice.hide();
-		new Notice(`Analysis failed: ${formatError(error)}`, 8000);
+		new Notice(ctx.tr("notice.analysisFailed", { message: formatError(error, ctx) }), 8000);
 		console.error("Analysis failed:", error);
 	}
 }
@@ -160,13 +162,13 @@ export async function batchAnalyzeImages(
 ): Promise<void> {
 	const activeFile = ctx.app.workspace.getActiveFile();
 	if (!activeFile) {
-		new Notice("No active file. Please open a note first.", 5000);
+		new Notice(ctx.tr("notice.noActiveFile"), 5000);
 		return;
 	}
 
 	const activeView = ctx.app.workspace.getActiveViewOfType(MarkdownView);
 	if (!activeView) {
-		new Notice("No active Markdown view found.", 5000);
+		new Notice(ctx.tr("notice.noMarkdownView"), 5000);
 		return;
 	}
 
@@ -175,7 +177,7 @@ export async function batchAnalyzeImages(
 	const references = ctx.imageExtractor.extractImageReferences(content);
 
 	if (references.length === 0) {
-		new Notice("No images found in the current note", 5000);
+		new Notice(ctx.tr("notice.noImagesInNote"), 5000);
 		return;
 	}
 
@@ -185,7 +187,7 @@ export async function batchAnalyzeImages(
 	for (let i = 0; i < references.length; i++) {
 		const reference = references[i]!;
 		const progressNotice = new Notice(
-			`🖼️ Processing image ${i + 1} of ${references.length}…`,
+			ctx.tr("notice.batchProgress", { current: i + 1, total: references.length }),
 			0
 		);
 
@@ -203,7 +205,7 @@ export async function batchAnalyzeImages(
 
 			const imageLine = findLineContaining(editor, reference.originalText);
 			const imageLineContent = editor.getLine(imageLine);
-			const header = "\n\n> [!note]+ AI Analysis\n> ";
+			const header = `\n\n${ctx.tr("generated.aiAnalysisCallout")}\n> `;
 			editor.replaceRange(header, { line: imageLine, ch: imageLineContent.length });
 
 			let insertPos = advancePosition({ line: imageLine, ch: imageLineContent.length }, header);
@@ -228,7 +230,11 @@ export async function batchAnalyzeImages(
 	}
 
 	new Notice(
-		`✅ Batch analysis complete! ${successCount} succeeded${errorCount > 0 ? `, ${errorCount} failed` : ""}.`,
+		ctx.tr("notice.batchComplete", {
+			success: successCount,
+			failures:
+				errorCount > 0 ? ctx.tr("notice.batchFailures", { count: errorCount }) : "",
+		}),
 		5000
 	);
 }
@@ -241,7 +247,7 @@ export async function analyzeImageFromBase64(
 	editor: Editor,
 	insertLine: number
 ): Promise<void> {
-	const thinkingNotice = new Notice("🤔 Analyzing pasted image…", 0);
+	const thinkingNotice = new Notice(ctx.tr("notice.analyzingPastedImage"), 0);
 
 	try {
 		const userMessage = LLMService.createMultimodalMessage("user", prompt, [
@@ -249,7 +255,7 @@ export async function analyzeImageFromBase64(
 		]);
 
 		const lineContent = editor.getLine(insertLine);
-		const header = "\n\n> [!note]+ AI Analysis\n> ";
+		const header = `\n\n${ctx.tr("generated.aiAnalysisCallout")}\n> `;
 		editor.replaceRange(header, { line: insertLine, ch: lineContent.length });
 
 		let insertPos = advancePosition({ line: insertLine, ch: lineContent.length }, header);
@@ -269,17 +275,17 @@ export async function analyzeImageFromBase64(
 		}
 
 		editor.replaceRange("\n\n", insertPos);
-		new Notice("Pasted image analysis complete", 3000);
+		new Notice(ctx.tr("notice.pastedAnalysisComplete"), 3000);
 	} catch (error) {
 		thinkingNotice.hide();
-		new Notice(`Analysis failed: ${formatError(error)}`, 8000);
+		new Notice(ctx.tr("notice.analysisFailed", { message: formatError(error, ctx) }), 8000);
 	}
 }
 
-function formatError(error: unknown): string {
+function formatError(error: unknown, ctx: ImageAnalysisContext): string {
 	if (error instanceof LLMServiceError) {
 		return error.statusCode ? `HTTP ${error.statusCode}: ${error.message}` : error.message;
 	}
 	if (error instanceof Error) return error.message;
-	return "Unknown error";
+	return ctx.tr("notice.unknownError");
 }

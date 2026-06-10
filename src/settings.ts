@@ -1,9 +1,12 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { UiLanguage } from "./i18n";
+import { applyProviderPreset, getProviderDropdownOptions, PROVIDER_PRESETS, VISION_MODEL_SUGGESTIONS } from "./constants/providers";
+import { canEncryptSecrets } from "./services/secretStorage";
 import LectureLensPlugin from "./main";
 import { LLMServiceError } from "./services/llm";
 
-export type ApiProvider = "OpenAI" | "Gemini" | "Custom";
+export type ApiProvider = "OpenAI" | "DeepSeek" | "Kimi" | "Gemini" | "Custom";
 
 export interface PromptTemplate {
 	name: string;
@@ -11,10 +14,12 @@ export interface PromptTemplate {
 }
 
 export interface LectureLensSettings {
+	uiLanguage: UiLanguage;
 	apiProvider: ApiProvider;
 	apiKey: string;
 	baseUrl: string;
 	modelName: string;
+	supportsVision: boolean;
 	promptTemplates: PromptTemplate[];
 	courseFolderPath: string;
 	embeddingModelName: string;
@@ -23,13 +28,17 @@ export interface LectureLensSettings {
 	enablePasteOcr: boolean;
 	pasteImageFolder: string;
 	autoAnalyzeOnPaste: boolean;
+	autoAttachCurrentNote: boolean;
+	maxNoteContextChars: number;
 }
 
 export const DEFAULT_SETTINGS: LectureLensSettings = {
+	uiLanguage: "auto",
 	apiProvider: "OpenAI",
 	apiKey: "",
 	baseUrl: "https://api.openai.com/v1",
 	modelName: "gpt-4o",
+	supportsVision: true,
 	promptTemplates: [
 		{
 			name: "Lecture Notes",
@@ -51,6 +60,8 @@ export const DEFAULT_SETTINGS: LectureLensSettings = {
 	enablePasteOcr: true,
 	pasteImageFolder: "attachments",
 	autoAnalyzeOnPaste: false,
+	autoAttachCurrentNote: true,
+	maxNoteContextChars: 6000,
 };
 
 export class LectureLensSettingTab extends PluginSettingTab {
@@ -63,35 +74,98 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
+		const tr = (key: Parameters<LectureLensPlugin["tr"]>[0], params?: Parameters<LectureLensPlugin["tr"]>[1]) =>
+			this.plugin.tr(key, params);
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("API provider")
-			.setDesc("Choose which API provider to use.")
+			.setName(tr("settings.uiLanguage.name"))
+			.setDesc(tr("settings.uiLanguage.desc"))
 			.addDropdown((dropdown) =>
 				dropdown
 					.addOptions({
-						OpenAI: "OpenAI",
-						Gemini: "Gemini",
-						Custom: "Custom",
+						auto: tr("settings.uiLanguage.auto"),
+						en: tr("settings.uiLanguage.en"),
+						zh: tr("settings.uiLanguage.zh"),
 					})
+					.setValue(this.plugin.settings.uiLanguage)
+					.onChange(async (value) => {
+						const allowed: UiLanguage[] = ["auto", "en", "zh"];
+						const language = allowed.find((item) => item === value);
+						if (!language) {
+							dropdown.setValue(this.plugin.settings.uiLanguage);
+							return;
+						}
+						if (language === this.plugin.settings.uiLanguage) return;
+						this.plugin.settings.uiLanguage = language;
+						await this.plugin.saveSettings();
+						this.display();
+						new Notice(tr("notice.reloadForLanguage"), 6000);
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.apiProvider.name"))
+			.setDesc(tr("settings.apiProvider.desc"))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions(getProviderDropdownOptions(tr, this.plugin.getLocale()))
 					.setValue(this.plugin.settings.apiProvider)
 					.onChange(async (value) => {
-						const allowedProviders: ApiProvider[] = ["OpenAI", "Gemini", "Custom"];
+						const allowedProviders: ApiProvider[] = [
+							"OpenAI",
+							"DeepSeek",
+							"Kimi",
+							"Gemini",
+							"Custom",
+						];
 						const provider = allowedProviders.find((item) => item === value);
 						if (!provider) {
 							dropdown.setValue(this.plugin.settings.apiProvider);
 							return;
 						}
 						this.plugin.settings.apiProvider = provider;
+						if (provider !== "Custom") {
+							const preset = applyProviderPreset(provider);
+							this.plugin.settings.baseUrl = preset.baseUrl;
+							this.plugin.settings.modelName = preset.modelName;
+							this.plugin.settings.embeddingModelName = preset.embeddingModelName;
+							this.plugin.settings.supportsVision = preset.supportsVision;
+						}
+						await this.plugin.saveSettings();
+						this.display();
+					})
+			);
+
+		if (this.plugin.settings.apiProvider !== "Custom") {
+			const preset = PROVIDER_PRESETS[this.plugin.settings.apiProvider];
+			containerEl.createEl("p", {
+				cls: "setting-item-description lecture-lens-provider-hint",
+				text: tr("settings.apiProvider.presetHint", {
+					baseUrl: preset.baseUrl,
+					model: preset.modelName,
+				}),
+			});
+		}
+
+		new Setting(containerEl)
+			.setName(tr("settings.supportsVision.name"))
+			.setDesc(tr("settings.supportsVision.desc"))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.supportsVision)
+					.onChange(async (value) => {
+						this.plugin.settings.supportsVision = value;
 						await this.plugin.saveSettings();
 					})
 			);
 
 		new Setting(containerEl)
-			.setName("API key")
-			.setDesc("Warning: Your API key will be stored unencrypted on disk in this vault. Anyone with access can read it.")
+			.setName(tr("settings.apiKey.name"))
+			.setDesc(
+				tr(canEncryptSecrets() ? "settings.apiKey.descSecure" : "settings.apiKey.descPlain")
+			)
 			.addText((text) => {
 				text
 					.setPlaceholder("sk-...")
@@ -104,11 +178,15 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Base URL")
-			.setDesc("Set the base URL for the API.")
+			.setName(tr("settings.baseUrl.name"))
+			.setDesc(tr("settings.baseUrl.desc"))
 			.addText((text) =>
 				text
-					.setPlaceholder("https://api.openai.com/v1")
+					.setPlaceholder(
+						this.plugin.settings.apiProvider === "DeepSeek"
+							? "https://api.deepseek.com"
+							: "https://api.openai.com/v1"
+					)
 					.setValue(this.plugin.settings.baseUrl)
 					.onChange(async (value) => {
 						const trimmed = value.trim();
@@ -116,7 +194,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 						if (!isValid) {
 							text.inputEl.classList.add("lecture-lens-input-error");
 							text.inputEl.setAttribute("aria-invalid", "true");
-							text.inputEl.title = "Base URL must start with http:// or https://";
+							text.inputEl.title = tr("settings.baseUrl.invalidTitle");
 							return;
 						}
 						text.inputEl.classList.remove("lecture-lens-input-error");
@@ -128,11 +206,15 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Model name")
-			.setDesc("Set the model identifier to call, for example gpt-4o.")
+			.setName(tr("settings.modelName.name"))
+			.setDesc(tr("settings.modelName.desc"))
 			.addText((text) =>
 				text
-					.setPlaceholder("gpt-4o")
+					.setPlaceholder(
+						this.plugin.settings.apiProvider === "DeepSeek"
+							? "deepseek-v4-flash"
+							: "gpt-4o"
+					)
 					.setValue(this.plugin.settings.modelName)
 					.onChange(async (value) => {
 						this.plugin.settings.modelName = value.trim();
@@ -140,15 +222,39 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					})
 			);
 
+		const visionModels = VISION_MODEL_SUGGESTIONS[this.plugin.settings.apiProvider];
+		if (visionModels && visionModels.length > 0) {
+			new Setting(containerEl)
+				.setName(tr("settings.modelPreset.name"))
+				.setDesc(tr("settings.modelPreset.desc"))
+				.addDropdown((dropdown) => {
+					dropdown.addOption("", tr("settings.modelPreset.custom"));
+					for (const model of visionModels) {
+						dropdown.addOption(model, model);
+					}
+					dropdown.setValue(
+						visionModels.includes(this.plugin.settings.modelName)
+							? this.plugin.settings.modelName
+							: ""
+					);
+					dropdown.onChange(async (value) => {
+						if (!value) return;
+						this.plugin.settings.modelName = value;
+						await this.plugin.saveSettings();
+						this.display();
+					});
+				});
+		}
+
 		new Setting(containerEl)
-			.setName("Test connection")
-			.setDesc("Verify that your API key and settings are working correctly.")
+			.setName(tr("settings.testConnection.name"))
+			.setDesc(tr("settings.testConnection.desc"))
 			.addButton((button) =>
 				button
-					.setButtonText("Check connection")
+					.setButtonText(tr("settings.testConnection.button"))
 					.setCta()
 					.onClick(async () => {
-						button.setButtonText("Testing...").setDisabled(true);
+						button.setButtonText(tr("settings.testConnection.testing")).setDisabled(true);
 
 						try {
 							const response = await this.plugin.llmService.chatCompletion([
@@ -163,59 +269,61 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 							const firstChoice = response.choices[0];
 							const rawContent = firstChoice?.message?.content;
-							const message = typeof rawContent === "string" ? rawContent : "No response";
+							const message = typeof rawContent === "string" ? rawContent : tr("settings.testConnection.noResponse");
 							new Notice(
-								`✅ Connection successful!\nModel: ${response.model}\nResponse: ${message}`,
+								tr("settings.testConnection.success", {
+									model: response.model,
+									message,
+								}),
 								5000
 							);
 						} catch (error) {
-							// Log full error for developer debugging
 							console.error("LLM Connection Error:", error);
 
-							// Sanitize error message for user display
-							let userMessage = "❌ 连接错误: 未知错误 (查看控制台详情)";
+							let userMessage = tr("settings.testConnection.errorUnknown");
 
 							if (error instanceof LLMServiceError) {
 								const statusCode = error.statusCode;
 								const errorMsg = error.message.toLowerCase();
 
 								if (statusCode === 401 || errorMsg.includes("unauthorized") || errorMsg.includes("authentication")) {
-									userMessage = "❌ 认证失败 (401)：请检查 API Key 是否正确。";
+									userMessage = tr("settings.testConnection.error401");
 								} else if (statusCode === 404 || errorMsg.includes("not found")) {
-									userMessage = "❌ 找不到资源 (404)：请检查 Base URL 或模型名称。";
+									userMessage = tr("settings.testConnection.error404");
 								} else if (statusCode === 429 || errorMsg.includes("rate limit") || errorMsg.includes("quota")) {
-									userMessage = "❌ 额度超限 (429)：余额不足或请求过频。";
+									userMessage = tr("settings.testConnection.error429");
 								} else if (errorMsg.includes("timeout")) {
-									userMessage = "❌ 请求超时：网络不稳定，请稍后重试。";
+									userMessage = tr("settings.testConnection.errorTimeout");
 								} else {
-									// Default: show short error snippet
-									const shortError = error.message.substring(0, 50);
-									userMessage = `❌ 连接错误: ${shortError}... (查看控制台详情)`;
+									userMessage = tr("settings.testConnection.errorGeneric", {
+										message: error.message.substring(0, 50),
+									});
 								}
 							} else if (error instanceof Error) {
 								const errorMsg = error.message.toLowerCase();
-								
+
 								if (errorMsg.includes("timeout")) {
-									userMessage = "❌ 请求超时：网络不稳定，请稍后重试。";
+									userMessage = tr("settings.testConnection.errorTimeout");
 								} else if (errorMsg.includes("network")) {
-									userMessage = "❌ 网络错误：请检查网络连接。";
+									userMessage = tr("settings.testConnection.errorNetwork");
 								} else {
-									const shortError = error.message.substring(0, 50);
-									userMessage = `❌ 连接错误: ${shortError}... (查看控制台详情)`;
+									userMessage = tr("settings.testConnection.errorGeneric", {
+										message: error.message.substring(0, 50),
+									});
 								}
 							}
 
 							new Notice(userMessage, 8000);
 						} finally {
-							button.setButtonText("Check connection").setDisabled(false);
+							button.setButtonText(tr("settings.testConnection.button")).setDisabled(false);
 						}
 					})
 			);
 
 		// Prompt templates section
-		new Setting(containerEl).setName("Prompt templates").setHeading();
+		new Setting(containerEl).setName(tr("settings.promptTemplates.heading")).setHeading();
 		containerEl.createEl("p", {
-			text: "Customize the preset prompts available in the analysis modal.",
+			text: tr("settings.promptTemplates.desc"),
 			cls: "setting-item-description",
 		});
 
@@ -228,7 +336,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				const templateSetting = new Setting(templatesContainer)
 					.addText((text) =>
 						text
-							.setPlaceholder("Template name")
+							.setPlaceholder(tr("settings.promptTemplates.namePlaceholder"))
 							.setValue(template.name)
 							.onChange(async (value) => {
 								this.plugin.settings.promptTemplates[index]!.name = value;
@@ -237,7 +345,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					)
 					.addTextArea((textArea) => {
 						textArea
-							.setPlaceholder("Prompt text")
+							.setPlaceholder(tr("settings.promptTemplates.promptPlaceholder"))
 							.setValue(template.prompt)
 							.onChange(async (value) => {
 								this.plugin.settings.promptTemplates[index]!.prompt = value;
@@ -250,7 +358,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					.addButton((btn) =>
 						btn
 							.setIcon("trash")
-							.setTooltip("Remove template")
+							.setTooltip(tr("settings.promptTemplates.removeTooltip"))
 							.onClick(async () => {
 								this.plugin.settings.promptTemplates.splice(index, 1);
 								await this.plugin.saveSettings();
@@ -262,10 +370,10 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 			new Setting(templatesContainer).addButton((btn) =>
 				btn
-					.setButtonText("Add template")
+					.setButtonText(tr("settings.promptTemplates.addButton"))
 					.onClick(async () => {
 						this.plugin.settings.promptTemplates.push({
-							name: "New template",
+							name: tr("settings.promptTemplates.newName"),
 							prompt: "",
 						});
 						await this.plugin.saveSettings();
@@ -276,11 +384,37 @@ export class LectureLensSettingTab extends PluginSettingTab {
 
 		renderTemplates();
 
-		new Setting(containerEl).setName("Course context (RAG)").setHeading();
+		new Setting(containerEl).setName(tr("settings.rag.heading")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Course folder")
-			.setDesc("Vault path to the course folder used for retrieval, e.g. Courses/Linear Algebra.")
+			.setName(tr("settings.autoAttachCurrentNote.name"))
+			.setDesc(tr("settings.autoAttachCurrentNote.desc"))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoAttachCurrentNote)
+					.onChange(async (value) => {
+						this.plugin.settings.autoAttachCurrentNote = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.maxNoteContextChars.name"))
+			.setDesc(tr("settings.maxNoteContextChars.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(1000, 20000, 500)
+					.setValue(this.plugin.settings.maxNoteContextChars)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.maxNoteContextChars = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.courseFolder.name"))
+			.setDesc(tr("settings.courseFolder.desc"))
 			.addText((text) =>
 				text
 					.setPlaceholder("Courses/My Course")
@@ -292,8 +426,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Embedding model")
-			.setDesc("Model used to build and query the course index.")
+			.setName(tr("settings.embeddingModel.name"))
+			.setDesc(tr("settings.embeddingModel.desc"))
 			.addText((text) =>
 				text
 					.setPlaceholder("text-embedding-3-small")
@@ -305,8 +439,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Enable RAG in chat")
-			.setDesc("Include retrieved course notes as context in the chat sidebar.")
+			.setName(tr("settings.ragEnabled.name"))
+			.setDesc(tr("settings.ragEnabled.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.ragEnabled)
@@ -317,8 +451,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Retrieval top K")
-			.setDesc("Number of note chunks to inject per chat message.")
+			.setName(tr("settings.ragTopK.name"))
+			.setDesc(tr("settings.ragTopK.desc"))
 			.addSlider((slider) =>
 				slider
 					.setLimits(1, 10, 1)
@@ -331,39 +465,39 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Rebuild course index")
-			.setDesc("Scan the course folder and rebuild the local embedding index.")
+			.setName(tr("settings.rebuildIndex.name"))
+			.setDesc(tr("settings.rebuildIndex.desc"))
 			.addButton((button) =>
 				button
-					.setButtonText("Rebuild index")
+					.setButtonText(tr("settings.rebuildIndex.button"))
 					.setCta()
 					.onClick(async () => {
 						const folder = this.plugin.settings.courseFolderPath.trim();
 						if (!folder) {
-							new Notice("Set a course folder path first.", 5000);
+							new Notice(tr("settings.rebuildIndex.noFolder"), 5000);
 							return;
 						}
-						button.setDisabled(true).setButtonText("Indexing…");
+						button.setDisabled(true).setButtonText(tr("settings.rebuildIndex.indexing"));
 						try {
 							const count = await this.plugin.ragService.buildIndex(
 								folder,
 								this.plugin.settings.embeddingModelName
 							);
-							new Notice(`✅ Index rebuilt with ${count} chunks.`, 5000);
+							new Notice(tr("settings.rebuildIndex.success", { count }), 5000);
 						} catch (error) {
-							const msg = error instanceof Error ? error.message : "Unknown error";
-							new Notice(`❌ Index rebuild failed: ${msg}`, 8000);
+							const msg = error instanceof Error ? error.message : tr("notice.unknownError");
+							new Notice(tr("settings.rebuildIndex.failed", { message: msg }), 8000);
 						} finally {
-							button.setDisabled(false).setButtonText("Rebuild index");
+							button.setDisabled(false).setButtonText(tr("settings.rebuildIndex.button"));
 						}
 					})
 			);
 
-		new Setting(containerEl).setName("Clipboard OCR").setHeading();
+		new Setting(containerEl).setName(tr("settings.clipboard.heading")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Enable paste OCR")
-			.setDesc("When pasting an image into a note, save it and optionally analyze with AI.")
+			.setName(tr("settings.enablePasteOcr.name"))
+			.setDesc(tr("settings.enablePasteOcr.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enablePasteOcr)
@@ -374,8 +508,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Paste image folder")
-			.setDesc("Folder where pasted screenshots are saved.")
+			.setName(tr("settings.pasteImageFolder.name"))
+			.setDesc(tr("settings.pasteImageFolder.desc"))
 			.addText((text) =>
 				text
 					.setPlaceholder("attachments")
@@ -387,8 +521,8 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Auto-analyze on paste")
-			.setDesc("Skip the prompt modal and analyze immediately using the first template.")
+			.setName(tr("settings.autoAnalyzeOnPaste.name"))
+			.setDesc(tr("settings.autoAnalyzeOnPaste.desc"))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.autoAnalyzeOnPaste)

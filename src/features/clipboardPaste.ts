@@ -7,6 +7,8 @@ export function registerClipboardPaste(plugin: LectureLensPlugin): void {
 	if (!plugin.settings.enablePasteOcr) return;
 
 	plugin.registerDomEvent(document, "paste", (evt: ClipboardEvent) => {
+		if (!plugin.settings.enablePasteOcr) return;
+
 		const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view?.file) return;
 

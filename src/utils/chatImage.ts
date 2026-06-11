@@ -16,17 +16,22 @@ export interface ChatImageAttachment {
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
+	// eslint-disable-next-line no-undef
+	if (typeof Buffer !== "undefined") return Buffer.from(buffer).toString("base64");
+
 	const bytes = new Uint8Array(buffer);
 	let binary = "";
-	for (let i = 0; i < bytes.length; i++) {
-		binary += String.fromCharCode(bytes[i]!);
+	const chunkSize = 0x8000;
+	for (let i = 0; i < bytes.length; i += chunkSize) {
+		const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+		binary += String.fromCharCode(...chunk);
 	}
 	return btoa(binary);
 }
 
 function normalizeMimeType(mimeType: string): string {
 	if (mimeType === "image/jpg") return "image/jpeg";
-	return mimeType || "image/png";
+	return mimeType;
 }
 
 const EXTENSION_MIME: Record<string, string> = {

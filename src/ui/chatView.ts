@@ -309,10 +309,10 @@ export class ChatView extends ItemView {
 	}
 
 	private visionBlockedNotice(): void {
-		new Notice(
-			this.plugin.tr("chat.modelNoVision", { model: this.plugin.settings.modelName }),
-			8000
-		);
+		const message = !this.plugin.settings.supportsVision
+			? this.plugin.tr("chat.visionRequired")
+			: this.plugin.tr("chat.modelNoVision", { model: this.plugin.settings.modelName });
+		new Notice(message, 8000);
 	}
 
 	private formatChatError(error: unknown): string {

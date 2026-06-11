@@ -91,10 +91,8 @@ export function providerSupportsVision(
 	modelName: string,
 	supportsVisionSetting: boolean
 ): boolean {
-	if (!supportsVisionSetting) {
-		return modelSupportsVisionApi(provider, modelName, false);
-	}
-	return modelSupportsVisionApi(provider, modelName, supportsVisionSetting);
+	if (!supportsVisionSetting) return false;
+	return modelSupportsVisionApi(provider, modelName, true);
 }
 
 function inferVisionFromModelName(modelName: string): boolean {

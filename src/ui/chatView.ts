@@ -21,7 +21,13 @@ import {
 } from "../services/chatHistoryService";
 import { buildChatContext, buildChatContextPreview } from "../services/chatContextService";
 import { ChatContextSnapshot } from "../types/chatContext";
-import { renderContextPanel } from "./chatContextPanel";
+import {
+	mountContextPanel,
+	renderContextPanelBody,
+	updateContextPanelSummary,
+	ContextPanelElements,
+} from "./chatContextPanel";
+import { SessionRenameModal } from "./sessionRenameModal";
 import { ApiProvider } from "../settings";
 import { findProfileByProvider, LlmProfile } from "../types/llmProfile";
 import LectureLensPlugin from "../main";
@@ -29,6 +35,7 @@ import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
 import { ChatMessage, LLMServiceError } from "../services/llm";
 import { VaultFileSuggestModal } from "./fileSuggestModal";
 import { debounceRender, renderChatMarkdown } from "../utils/markdownRender";
+import { MermaidEnhanceLabels } from "../utils/mermaidEnhance";
 import { getCourseFolderDisplayPath, hasCourseFolderInput } from "../utils/vaultPath";
 import {
 	ChatImageAttachment,
@@ -86,6 +93,8 @@ export class ChatView extends ItemView {
 	private scopeStatusEl: HTMLElement | null = null;
 	private scopeStatusRequest = 0;
 	private contextPanelEl!: HTMLElement;
+	private contextPanel: ContextPanelElements | null = null;
+	private lastContextSnapshot: ChatContextSnapshot | null = null;
 	private sessionIncludeRag = true;
 	private sessionIncludeNotes = true;
 	private contextPreviewTimer: number | null = null;
@@ -238,7 +247,26 @@ export class ChatView extends ItemView {
 			this.scheduleContextPreview();
 		});
 		this.adjustChatInputHeight();
-		this.renderContextPanelState(null);
+		this.contextPanel = mountContextPanel(
+			this.contextPanelEl,
+			(key, params) => this.plugin.tr(key, params),
+			{
+				includeRag: this.sessionIncludeRag,
+				includeNotes: this.sessionIncludeNotes,
+				onIncludeRagChange: (value) => {
+					this.sessionIncludeRag = value;
+					void this.refreshContextPreview();
+				},
+				onIncludeNotesChange: (value) => {
+					this.sessionIncludeNotes = value;
+					this.renderContextChips();
+					void this.refreshContextPreview();
+				},
+			},
+			(open) => {
+				if (open) this.renderContextPanelBodyContent();
+			}
+		);
 		void this.refreshContextPreview();
 
 		await this.initializeChatSession();
@@ -372,6 +400,16 @@ export class ChatView extends ItemView {
 		});
 
 		const sessionActions = sessionRow.createEl("div", { cls: "lecture-lens-chat-toolbar-actions" });
+		const renameBtn = sessionActions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.renameChat"),
+				title: this.plugin.tr("chat.renameChat"),
+			},
+		});
+		setIcon(renameBtn, "pencil");
+		renameBtn.addEventListener("click", () => this.openRenameSessionModal());
+
 		const deleteBtn = sessionActions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn",
 			attr: {
@@ -485,6 +523,28 @@ export class ChatView extends ItemView {
 		await this.persistCurrentSession();
 	}
 
+	private openRenameSessionModal(): void {
+		if (!this.currentSessionId || this.isStreaming) return;
+		void this.plugin.chatHistoryService.getSession(this.currentSessionId).then((session) => {
+			if (!session) return;
+			const currentTitle = session.title || this.plugin.tr("chat.newSessionTitle");
+			new SessionRenameModal(
+				this.app,
+				currentTitle,
+				(key, params) => this.plugin.tr(key, params),
+				(title) => void this.renameCurrentSession(title)
+			).open();
+		});
+	}
+
+	private async renameCurrentSession(title: string): Promise<void> {
+		if (!this.currentSessionId) return;
+		const updated = await this.plugin.chatHistoryService.renameSession(this.currentSessionId, title);
+		if (!updated) return;
+		await this.refreshSessionSelect();
+		new Notice(this.plugin.tr("chat.renameChatSuccess"), 2000);
+	}
+
 	private async switchToSession(sessionId: string): Promise<void> {
 		if (!sessionId || sessionId === this.currentSessionId || this.isStreaming) return;
 		await this.persistCurrentSession();
@@ -540,6 +600,7 @@ export class ChatView extends ItemView {
 
 		if (session.turns.length === 0) {
 			await this.appendMessage("assistant", this.plugin.tr("chat.welcome"), undefined, true);
+			this.scrollMessagesToBottom();
 			return;
 		}
 
@@ -559,6 +620,9 @@ export class ChatView extends ItemView {
 			}
 			await this.appendMessage(turn.role, displayContent);
 		}
+
+		this.scrollMessagesToBottom();
+		void this.refreshContextPreview();
 	}
 
 	private async persistCurrentSession(): Promise<void> {
@@ -575,11 +639,13 @@ export class ChatView extends ItemView {
 			imageDescription: turn.imageDescription,
 		}));
 
-		const firstUser = session.turns.find((turn) => turn.role === "user");
-		if (firstUser?.content.trim()) {
-			session.title = deriveSessionTitle(firstUser.content, this.plugin.tr("chat.newSessionTitle"));
-		} else if (session.turns.length === 0) {
-			session.title = this.plugin.tr("chat.newSessionTitle");
+		if (!session.titleManuallySet) {
+			const firstUser = session.turns.find((turn) => turn.role === "user");
+			if (firstUser?.content.trim()) {
+				session.title = deriveSessionTitle(firstUser.content, this.plugin.tr("chat.newSessionTitle"));
+			} else if (session.turns.length === 0) {
+				session.title = this.plugin.tr("chat.newSessionTitle");
+			}
 		}
 
 		await this.plugin.chatHistoryService.saveSession(session);
@@ -1048,11 +1114,30 @@ export class ChatView extends ItemView {
 		if (content) {
 			const textEl = contentEl.createEl("div", { cls: "lecture-lens-chat-turn-text" });
 			const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
-			await renderChatMarkdown(this.app, this, textEl, content, sourcePath);
+			await renderChatMarkdown(
+				this.app,
+				this,
+				textEl,
+				content,
+				sourcePath,
+				this.getMermaidRenderOptions()
+			);
 		}
 
-		this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+		this.scrollMessagesToBottom();
 		return contentEl;
+	}
+
+	private scrollMessagesToBottom(): void {
+		if (!this.messagesEl) return;
+		const scrollNow = () => {
+			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+		};
+		scrollNow();
+		requestAnimationFrame(() => {
+			scrollNow();
+			requestAnimationFrame(scrollNow);
+		});
 	}
 
 	private async copyToClipboard(text: string): Promise<void> {
@@ -1128,7 +1213,7 @@ export class ChatView extends ItemView {
 					cls: "lecture-lens-chat-vision-relay-status",
 				});
 				relayStatusEl.setText(this.plugin.tr("chat.analyzingImages"));
-				this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+				this.scrollMessagesToBottom();
 
 				const imageDescription = await this.plugin.runVisionRelay(
 					this.getCurrentProfile(),
@@ -1142,7 +1227,7 @@ export class ChatView extends ItemView {
 						relayStatusEl.setText(
 							`${this.plugin.tr("chat.analyzingImages")}\n\n${fullText}`
 						);
-						this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+						this.scrollMessagesToBottom();
 					}
 				);
 
@@ -1213,14 +1298,36 @@ export class ChatView extends ItemView {
 				fullResponse,
 				sourcePath,
 				this.streamRenderTimer,
-				180
+				180,
+				this.getMermaidRenderOptions()
 			);
-			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+			this.scrollMessagesToBottom();
 		}
 
 		this.clearStreamRenderTimer();
-		await renderChatMarkdown(this.app, this, contentEl, fullResponse, sourcePath);
+		await renderChatMarkdown(
+			this.app,
+			this,
+			contentEl,
+			fullResponse,
+			sourcePath,
+			this.getMermaidRenderOptions()
+		);
 		return fullResponse;
+	}
+
+	private getMermaidRenderOptions(): { mermaidLabels: MermaidEnhanceLabels } {
+		return {
+			mermaidLabels: {
+				clickToZoom: this.plugin.tr("chat.mermaidClickToZoom"),
+				scrollHint: this.plugin.tr("chat.mermaidScrollHint"),
+				zoomTitle: this.plugin.tr("chat.mermaidZoomTitle"),
+				zoomIn: this.plugin.tr("chat.mermaidZoomIn"),
+				zoomOut: this.plugin.tr("chat.mermaidZoomOut"),
+				zoomReset: this.plugin.tr("chat.mermaidZoomReset"),
+				zoomHint: this.plugin.tr("chat.mermaidZoomHint"),
+			},
+		};
 	}
 
 	private clearContextPreviewTimer(): void {
@@ -1243,24 +1350,24 @@ export class ChatView extends ItemView {
 	}
 
 	private renderContextPanelState(snapshot: ChatContextSnapshot | null): void {
-		if (!this.contextPanelEl) return;
-		renderContextPanel(
-			this.contextPanelEl,
+		if (!this.contextPanel) return;
+		this.lastContextSnapshot = snapshot;
+		updateContextPanelSummary(
+			this.contextPanel.summaryText,
 			snapshot,
-			(key, params) => this.plugin.tr(key, params),
-			{
-				includeRag: this.sessionIncludeRag,
-				includeNotes: this.sessionIncludeNotes,
-				onIncludeRagChange: (value) => {
-					this.sessionIncludeRag = value;
-					void this.refreshContextPreview();
-				},
-				onIncludeNotesChange: (value) => {
-					this.sessionIncludeNotes = value;
-					this.renderContextChips();
-					void this.refreshContextPreview();
-				},
-			}
+			(key, params) => this.plugin.tr(key, params)
+		);
+		if (this.contextPanel.panel.open) {
+			this.renderContextPanelBodyContent();
+		}
+	}
+
+	private renderContextPanelBodyContent(): void {
+		if (!this.contextPanel) return;
+		renderContextPanelBody(
+			this.contextPanel.bodyContent,
+			this.lastContextSnapshot,
+			(key, params) => this.plugin.tr(key, params)
 		);
 	}
 

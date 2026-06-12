@@ -82,7 +82,20 @@ export const en = {
 	"settings.pdfNotesMaxPages.desc": "Only the first N pages are parsed and sent to the model.",
 	"settings.pdfNotesSkipMerge.name": "Skip merge pass",
 	"settings.pdfNotesSkipMerge.desc":
-		"Concatenate section drafts without a final polish step (faster, fewer API calls).",
+		"Recommended ON: stitch section drafts as-is. Merge rewrites the whole note and may truncate long content.",
+	"settings.pdfNotesSectionMaxTokens.name": "Section max tokens",
+	"settings.pdfNotesSectionMaxTokens.desc":
+		"Token budget per section when writing notes. Increase if sections are cut off.",
+	"settings.pdfNotesSectionConcurrency.name": "Section parallelism",
+	"settings.pdfNotesSectionConcurrency.desc":
+		"How many sections to generate at once after the outline (1 = sequential, 2 recommended). Higher values are faster but may hit API rate limits.",
+	"settings.pdfNotesMergeMaxTokens.name": "Merge max tokens",
+	"settings.pdfNotesMergeMaxTokens.desc":
+		"Token budget for the optional merge pass (only when skip merge is off and note is short enough).",
+	"settings.pdfNotesStylePrompt.name": "Writing style",
+	"settings.pdfNotesStylePrompt.desc":
+		"Optional instructions for tone and format (e.g. exam-focused bullets, bilingual terms). Applied to section writing and merge.",
+	"settings.pdfNotesStylePrompt.placeholder": "e.g. Use concise bullet points; highlight definitions in bold.",
 
 	"settings.rag.heading": "Course context (RAG)",
 	"settings.autoAttachCurrentNote.name": "Attach current note in chat",
@@ -187,17 +200,60 @@ export const en = {
 	"modal.pdfNotes.phase.error": "Error",
 	"modal.pdfNotes.sectionProgress": "Section {{current}} / {{total}}",
 
+	"modal.pdfNotesOptions.title": "Generate Markdown notes",
+	"modal.pdfNotesOptions.pdfLabel": "Source: {{name}}",
+	"modal.pdfNotesOptions.batchLabel": "{{count}} PDF files selected",
+	"modal.pdfNotesOptions.outputNames": "Output file names",
+	"modal.pdfNotesOptions.outputNamesDesc":
+		"Default names match the PDF file name. Edit before generating. The .md extension is added automatically.",
+	"modal.pdfNotesOptions.columnPdf": "PDF",
+	"modal.pdfNotesOptions.columnOutputName": "Markdown name",
+	"modal.pdfNotesOptions.addPdf": "Add PDF",
+	"modal.pdfNotesOptions.removePdf": "Remove",
+	"modal.pdfNotesOptions.startBatch": "Start ({{count}} files)",
+	"modal.pdfNotesOptions.outputFolder": "Output folder",
+	"modal.pdfNotesOptions.outputFolderDesc": "Where to save the generated note for this run.",
+	"modal.pdfNotesOptions.sectionSystemPrompt": "Section system prompt",
+	"modal.pdfNotesOptions.sectionSystemPromptDesc":
+		"Optional. Replaces the built-in system prompt for section writing. Settings → Writing style still applies on top.",
+	"modal.pdfNotesOptions.sectionSystemPromptPlaceholder":
+		"Leave empty to use the default prompt, or load from a Markdown file…",
+	"modal.pdfNotesOptions.loadPromptFile": "Load from file",
+	"modal.pdfNotesOptions.promptLoadedFrom": "Loaded from {{path}}.",
+	"modal.pdfNotesOptions.start": "Start",
+	"modal.pdfNotesOptions.cancel": "Cancel",
+
+	"modal.pdfMultiSelect.title": "Select PDF files",
+	"modal.pdfMultiSelect.desc": "Choose one or more PDFs to convert. You can confirm output names on the next step.",
+	"modal.pdfMultiSelect.search": "Search",
+	"modal.pdfMultiSelect.searchPlaceholder": "Filter by path…",
+	"modal.pdfMultiSelect.selectVisible": "Select visible",
+	"modal.pdfMultiSelect.clearSelection": "Clear selection",
+	"modal.pdfMultiSelect.continue": "Continue",
+	"modal.pdfMultiSelect.empty": "No PDF files match your search.",
+
+	"pdfNotes.statusBarTitle": "PDF → Markdown",
+	"pdfNotes.statusBarHint": "Click to open the generated note when finished",
+	"pdfNotes.statusBarFailed": "PDF notes failed",
+	"pdfNotes.progress.parsingPages": "Parsing {{name}}…",
+	"pdfNotes.progress.parsingPage": "Parsing page {{current}} / {{total}}",
+	"pdfNotes.progress.sectionsParallel": "Completed {{done}} / {{total}} · {{title}}",
+	"pdfNotes.progress.batchFile": "File {{current}} / {{total}}",
+	"pdfNotes.backgroundHint": "Runs in background — you can keep using Obsidian.",
+	"pdfNotes.progressLabel": "Progress",
+
 	// PDF notes prompts (sent to LLM)
 	"pdfNotes.prompt.outlineSystem":
-		"You are an academic document analyst. Given excerpted text from PDF pages, output JSON only (no markdown fences). Schema: {\"title\": string, \"sections\": [{\"id\": string, \"title\": string, \"summary\": string, \"pageStart\": number, \"pageEnd\": number}]}. Create 4–12 logical sections that cover all provided pages.",
+		"You are an academic document analyst. Given excerpted text from PDF pages, output JSON only (no markdown fences). Schema: {\"title\": string, \"sections\": [{\"id\": string, \"title\": string, \"summary\": string, \"pageStart\": number, \"pageEnd\": number}]}. Create 4–12 logical sections that cover all provided pages. For each section summary, list key concepts covered (comma-separated). Ensure sections are ordered logically and cover all page ranges without gaps or overlaps.",
 	"pdfNotes.prompt.outlineUser": "Build a structured outline for these PDF page excerpts:",
 	"pdfNotes.prompt.sectionSystem":
-		"You write clear Markdown study notes for one section of a lecture document. Use headings, bullet lists, and LaTeX for math. Do not invent facts beyond the provided pages.",
+		"You write clear Markdown study notes for one section of a lecture document. Use headings, bullet lists, and LaTeX for math. Do not invent facts beyond the provided pages. For math, use ONLY $...$ (inline) and $$...$$ (display). Never use \\(...\\), \\[...\\], or bare brackets for formulas. After the section heading, start with an Obsidian abstract callout: > [!abstract] Section overview\\n> **Why this matters:** …\\n> **Methods / approach:** …\\nThen write the full section content. End with 2–4 bullet takeaways when appropriate.",
 	"pdfNotes.prompt.sectionUser":
-		"Write Markdown notes for this section using only the excerpts below. Start with a level-2 heading for the section title.",
+		"Write Markdown notes for this section using only the excerpts below. Start with ## section title, then the abstract callout (why learn + methods overview), then definitions → key ideas → examples → takeaways. Be thorough — do not omit important details from the excerpts.",
 	"pdfNotes.prompt.mergeSystem":
-		"You merge section drafts into one cohesive Markdown document. Remove repetition, unify tone, preserve facts, and use proper heading hierarchy with a single level-1 title.",
-	"pdfNotes.prompt.mergeUser": "Merge the following section drafts into one polished Markdown document:",
+		'You are a light-touch editor. Merge section drafts into one Markdown document. Normalize heading hierarchy (one level-1 title, sections use level-2/3). Fix formatting and transitions only. NEVER shorten, summarize away, or drop content from the drafts. Preserve every section abstract callout and all facts. Use $...$ and $$...$$ for math.',
+	"pdfNotes.prompt.mergeUser":
+		"Merge the following section drafts. Keep all content length and detail — polish formatting only:",
 
 	// File menu
 	"fileMenu.generatePdfNotes": "Generate Markdown notes",
@@ -244,6 +300,19 @@ export const en = {
 	"chat.contextSecurityHint":
 		"Context is read only from your Obsidian vault. Attach notes explicitly; external files are never accessed.",
 	"chat.copyMessage": "Copy message",
+	"chat.mermaidClickToZoom": "Click to zoom",
+	"chat.mermaidScrollHint": "Scroll horizontally",
+	"chat.mermaidZoomTitle": "Diagram",
+	"chat.mermaidZoomIn": "Zoom in",
+	"chat.mermaidZoomOut": "Zoom out",
+	"chat.mermaidZoomReset": "Reset zoom",
+	"chat.mermaidZoomHint": "Scroll to pan · Ctrl/Cmd + scroll to zoom",
+	"chat.renameChat": "Rename chat",
+	"chat.renameChatPrompt": "Chat title",
+	"chat.renameChatPlaceholder": "Enter a title",
+	"chat.renameChatCancel": "Cancel",
+	"chat.renameChatSave": "Save",
+	"chat.renameChatSuccess": "Conversation renamed.",
 	"chat.insertAtCursor": "Insert at cursor",
 	"chat.appendToNote": "Append to note",
 	"chat.replaceSelection": "Replace selection",
@@ -349,10 +418,21 @@ export const en = {
 
 	// Notices — PDF notes
 	"notice.pdfNotesNoApiKey": "Configure a default LLM profile with an API key before generating PDF notes.",
+	"notice.pdfNotesStarted": "PDF notes started in background: {{name}}",
+	"notice.pdfNotesAlreadyRunning": "A PDF notes job is already running. Check the status bar for progress.",
 	"notice.pdfNotesNoText":
 		"No extractable text found in this PDF. Scanned PDFs are not supported yet.",
 	"notice.pdfNotesTruncated": "Only the first {{limit}} of {{total}} pages will be processed.",
 	"notice.pdfNotesWriteFailed": "Could not create the output note.",
+	"notice.pdfNotesPromptFileEmpty": "The selected Markdown file is empty.",
+	"notice.pdfNotesPromptFileReadFailed": "Could not read the selected Markdown file.",
+	"notice.pdfNotesNoFilesSelected": "Select at least one PDF.",
+	"notice.pdfNotesInvalidOutputName": "Invalid output name for {{name}}.",
+	"notice.pdfNotesDuplicateOutputName": "Duplicate output name: {{name}}",
+	"notice.pdfNotesAlreadyInList": "That PDF is already in the list.",
+	"notice.pdfNotesBatchItemFailed": "{{name}} failed: {{message}}",
+	"notice.pdfNotesBatchComplete": "Batch done: {{succeeded}} / {{total}} saved, {{failed}} failed.",
+	"notice.pdfNotesBatchAllFailed": "All PDFs in the batch failed.",
 	"notice.pdfNotesComplete": "✅ Notes saved to {{path}}",
 	"notice.pdfNotesFailed": "❌ PDF notes failed:\n{{message}}",
 	"notice.noPdfInVault": "No PDF files found in the vault.",

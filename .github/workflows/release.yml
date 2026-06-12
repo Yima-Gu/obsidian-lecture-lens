@@ -44,9 +44,9 @@ jobs:
                       fi
                   done
                   shopt -s nullglob
-                  workers=(pdf.worker-*.min.mjs)
+                  workers=(pdf.worker*.min.mjs)
                   if [ ${#workers[@]} -eq 0 ]; then
-                      echo "::error::Missing release artifact: pdf.worker-*.min.mjs"
+                      echo "::error::Missing release artifact: pdf.worker*.min.mjs"
                       exit 1
                   fi
                   echo "Release artifacts:"
@@ -66,4 +66,4 @@ jobs:
                       transformers.min.js \
                       ort-wasm-simd.wasm \
                       ort-wasm.wasm \
-                      pdf.worker-*.min.mjs
+                      pdf.worker*.min.mjs

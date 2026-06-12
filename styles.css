@@ -6,3 +6,1516 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.lecture-lens-input-error {
+	border-color: var(--text-error) !important;
+	box-shadow: 0 0 0 1px var(--text-error) inset;
+}
+
+.lecture-lens-provider-hint {
+	margin-top: -8px;
+	margin-bottom: 12px;
+	padding-left: 0;
+}
+
+/* Analysis Modal Styles */
+.lecture-lens-analysis-modal {
+	padding: 20px;
+	min-width: 300px;
+	text-align: center;
+}
+
+.lecture-lens-modal-title {
+	margin-bottom: 20px;
+	font-size: 1.5em;
+	font-weight: 600;
+}
+
+.lecture-lens-status-container {
+	font-size: 1.2em;
+	padding: 20px 10px;
+	min-height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.lecture-lens-progress {
+	margin-top: 20px;
+	width: 100%;
+	height: 4px;
+	background-color: var(--background-modifier-border);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.lecture-lens-progress-bar {
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(
+		90deg,
+		var(--interactive-accent) 0%,
+		var(--interactive-accent-hover) 50%,
+		var(--interactive-accent) 100%
+	);
+	background-size: 200% 100%;
+	animation: lecture-lens-progress-animation 1.5s ease-in-out infinite;
+}
+
+@keyframes lecture-lens-progress-animation {
+	0% {
+		background-position: 0% 0%;
+	}
+	50% {
+		background-position: 100% 0%;
+	}
+	100% {
+		background-position: 0% 0%;
+	}
+}
+
+/* Ask Image Modal Styles */
+.lecture-lens-ask-modal {
+	padding: 22px;
+	min-width: 420px;
+}
+
+.lecture-lens-ask-modal h2 {
+	margin-top: 0;
+	margin-bottom: 16px;
+	font-size: 1.15rem;
+}
+
+.lecture-lens-textarea-wrapper {
+	margin: 12px 0;
+}
+
+.lecture-lens-prompt-textarea {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	border-radius: 10px;
+	padding: 10px 12px;
+	min-height: 120px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.lecture-lens-prompt-textarea:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.lecture-lens-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+/* Template settings section */
+.lecture-lens-template-setting {
+	flex-wrap: wrap;
+}
+
+.lecture-lens-template-textarea {
+	width: 100%;
+}
+
+/* Chat sidebar */
+.workspace-leaf-content[data-type="lecture-lens-chat"] .view-content {
+	height: 100%;
+	padding: 0;
+	overflow: hidden;
+}
+
+.workspace-leaf-content[data-type="lecture-lens-chat"] .view-content,
+.lecture-lens-chat-view {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.lecture-lens-chat-composer,
+.lecture-lens-chat-header,
+.lecture-lens-chat-toolbar {
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.lecture-lens-chat-view {
+	--lecture-lens-chat-message-font-size: 14px;
+	--ll-chat-gutter: 10px;
+	--ll-context-system: color-mix(in srgb, var(--text-muted) 70%, var(--background-modifier-border));
+	--ll-context-notes: color-mix(in srgb, var(--color-green) 55%, var(--interactive-accent));
+	--ll-context-rag: color-mix(in srgb, var(--interactive-accent) 75%, #8b5cf6);
+	--ll-context-history: color-mix(in srgb, var(--color-blue) 55%, var(--interactive-accent));
+	--ll-accent-soft: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+	--ll-accent-border: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
+	--ll-shadow: 0 1px 2px color-mix(in srgb, var(--background-modifier-box-shadow) 60%, transparent);
+	--ll-shadow-lg: 0 8px 24px color-mix(in srgb, var(--background-modifier-box-shadow) 45%, transparent);
+
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	padding: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+	background: var(--background-primary);
+}
+
+.lecture-lens-chat-body {
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.lecture-lens-chat-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	flex-shrink: 0;
+	padding: 8px var(--ll-chat-gutter) 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.lecture-lens-chat-brand {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.lecture-lens-chat-brand-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	background: var(--ll-accent-soft);
+	color: var(--interactive-accent);
+	box-shadow: var(--ll-shadow);
+}
+
+.lecture-lens-chat-brand-icon svg {
+	width: 18px;
+	height: 18px;
+}
+
+.lecture-lens-chat-brand-text {
+	min-width: 0;
+}
+
+.lecture-lens-chat-title {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.lecture-lens-chat-subtitle {
+	display: none;
+}
+
+.lecture-lens-chat-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.lecture-lens-chat-font-size {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px 4px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.lecture-lens-chat-font-size-label {
+	font-size: 0.62rem;
+	color: var(--text-muted);
+	margin-right: 2px;
+}
+
+.lecture-lens-chat-font-size-value {
+	min-width: 1.6em;
+	text-align: center;
+	font-size: 0.72rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-font-size-btn {
+	min-width: 1.6em;
+	height: 1.6em;
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1;
+}
+
+.lecture-lens-chat-header-icon-btn {
+	width: 32px;
+	height: 32px;
+}
+
+.lecture-lens-chat-text-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.74rem;
+	padding: 5px 9px;
+	border-radius: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: pointer;
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease,
+		background 0.15s ease;
+}
+
+.lecture-lens-chat-text-btn svg {
+	width: 14px;
+	height: 14px;
+}
+
+.lecture-lens-chat-text-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--ll-accent-border);
+	background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
+}
+
+.lecture-lens-chat-scope {
+	flex-shrink: 0;
+	padding: 0 var(--ll-chat-gutter) 4px;
+	position: relative;
+	z-index: 2;
+	overflow: hidden;
+}
+
+.lecture-lens-chat-scope-in-messages {
+	padding: 0 0 8px;
+	margin-bottom: 2px;
+}
+
+.lecture-lens-chat-scope-panel {
+	width: 100%;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	overflow: hidden;
+}
+
+.lecture-lens-chat-scope-panel.is-active {
+	border-color: color-mix(in srgb, var(--interactive-accent) 40%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--interactive-accent) 4%, var(--background-secondary));
+}
+
+.lecture-lens-chat-scope-panel.is-inactive {
+	opacity: 0.92;
+}
+
+.lecture-lens-chat-scope-summary {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	padding: 5px 8px;
+	cursor: pointer;
+	list-style: none;
+}
+
+.lecture-lens-chat-scope-summary::-webkit-details-marker {
+	display: none;
+}
+
+.lecture-lens-chat-scope-summary::marker {
+	content: "";
+}
+
+.lecture-lens-chat-scope-panel-body {
+	padding: 0 8px 6px 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.lecture-lens-chat-scope-leading {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.lecture-lens-chat-scope-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-scope-panel.is-active .lecture-lens-chat-scope-icon {
+	color: var(--interactive-accent);
+	background: var(--ll-accent-soft);
+}
+
+.lecture-lens-chat-scope-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.lecture-lens-chat-scope-badge {
+	font-size: 0.62rem;
+	font-weight: 600;
+	line-height: 1;
+	padding: 3px 6px;
+	border-radius: 999px;
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-scope-badge.is-on {
+	color: var(--interactive-accent);
+	background: var(--ll-accent-soft);
+	border: 1px solid var(--ll-accent-border);
+}
+
+.lecture-lens-chat-scope-badge.is-off {
+	color: var(--text-muted);
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-scope-body {
+	min-width: 0;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.lecture-lens-chat-scope-panel:not([open]) .lecture-lens-chat-scope-label {
+	display: none;
+}
+
+.lecture-lens-chat-scope-panel:not([open]) .lecture-lens-chat-scope-body {
+	flex-direction: row;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px 8px;
+}
+
+.lecture-lens-chat-scope-panel:not([open]) .lecture-lens-chat-scope-value {
+	font-size: 0.76rem;
+	font-weight: 600;
+}
+
+.lecture-lens-chat-scope-panel:not([open]) .lecture-lens-chat-scope-desc {
+	font-size: 0.68rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+}
+
+.lecture-lens-chat-scope-label {
+	font-size: 0.68rem;
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.lecture-lens-chat-scope-value {
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--text-normal);
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-scope-panel[open] .lecture-lens-chat-scope-value {
+	white-space: normal;
+	word-break: break-word;
+}
+
+.lecture-lens-chat-scope-desc,
+.lecture-lens-chat-scope-index {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	line-height: 1.35;
+}
+
+.lecture-lens-chat-scope-index {
+	color: var(--interactive-accent);
+	font-weight: 500;
+}
+
+.lecture-lens-chat-scope-details {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 4px;
+	padding-top: 6px;
+	border-top: 1px dashed var(--background-modifier-border);
+}
+
+.lecture-lens-chat-security-hint {
+	font-size: 0.7rem;
+	color: var(--text-faint);
+	line-height: 1.35;
+}
+
+.lecture-lens-embedding-download-panel {
+	margin: 4px 0 12px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.lecture-lens-embedding-state {
+	font-size: 0.82rem;
+	margin-bottom: 4px;
+}
+
+.lecture-lens-embedding-state-ready {
+	color: var(--text-success, #3fb950);
+}
+
+.lecture-lens-embedding-state-error {
+	color: var(--text-error);
+}
+
+.lecture-lens-embedding-progress {
+	margin: 4px 0 0;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.lecture-lens-embedding-error {
+	margin: 6px 0 0;
+	font-size: 0.78rem;
+	color: var(--text-error);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.lecture-lens-chat-messages {
+	flex: 1 1 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 4px var(--ll-chat-gutter) 10px;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	scroll-behavior: smooth;
+	position: relative;
+	z-index: 1;
+}
+
+.lecture-lens-chat-messages::-webkit-scrollbar {
+	width: 8px;
+}
+
+.lecture-lens-chat-messages::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--text-faint) 35%, transparent);
+	border-radius: 999px;
+}
+
+/* Copilot-style conversation turns */
+.lecture-lens-chat-turn {
+	max-width: 100%;
+	padding: 2px 0;
+}
+
+.lecture-lens-chat-turn-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-height: 22px;
+	margin-bottom: 4px;
+}
+
+.lecture-lens-chat-turn-label {
+	font-size: 0.72rem;
+	font-weight: 600;
+	color: var(--text-faint);
+}
+
+.lecture-lens-chat-turn-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.lecture-lens-chat-turn-assistant .lecture-lens-chat-turn-actions,
+.lecture-lens-chat-turn-user .lecture-lens-chat-turn-actions {
+	opacity: 1;
+}
+
+.lecture-lens-chat-action-btn {
+	opacity: 0.72;
+}
+
+.lecture-lens-chat-turn:hover .lecture-lens-chat-action-btn,
+.lecture-lens-chat-action-btn:focus-visible {
+	opacity: 1;
+}
+
+.lecture-lens-chat-apply-btn {
+	color: var(--interactive-accent);
+}
+
+.lecture-lens-chat-turn-user {
+	padding: 8px 10px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--interactive-accent) 7%, var(--background-secondary));
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 18%, var(--background-modifier-border));
+}
+
+.lecture-lens-chat-turn-user .lecture-lens-chat-turn-header {
+	margin-bottom: 6px;
+}
+
+.lecture-lens-chat-turn-user .lecture-lens-chat-turn-label {
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-turn-assistant {
+	padding: 2px 0 4px;
+}
+
+.lecture-lens-chat-turn-assistant .lecture-lens-chat-turn-header {
+	min-height: 18px;
+	margin-bottom: 2px;
+}
+
+.lecture-lens-chat-turn.is-welcome {
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px dashed var(--background-modifier-border);
+	background: color-mix(in srgb, var(--interactive-accent) 3%, var(--background-primary));
+}
+
+.lecture-lens-chat-turn.is-streaming .lecture-lens-chat-turn-body::after {
+	content: "";
+	display: inline-block;
+	width: 2px;
+	height: 1em;
+	margin-left: 2px;
+	vertical-align: text-bottom;
+	background: var(--interactive-accent);
+	animation: lecture-lens-caret 1s step-end infinite;
+}
+
+@keyframes lecture-lens-caret {
+	50% {
+		opacity: 0;
+	}
+}
+
+.lecture-lens-chat-turn-body,
+.lecture-lens-chat-turn-text {
+	word-break: break-word;
+	line-height: 1.65;
+	font-size: var(--lecture-lens-chat-message-font-size, 14px);
+	color: var(--text-normal);
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered *,
+.lecture-lens-chat-turn-text.markdown-rendered * {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.lecture-lens-chat-turn-actions,
+.lecture-lens-chat-turn-actions * {
+	user-select: none;
+	-webkit-user-select: none;
+	cursor: default;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered,
+.lecture-lens-chat-turn-text.markdown-rendered {
+	white-space: normal;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered p,
+.lecture-lens-chat-turn-text.markdown-rendered p {
+	margin: 0.5em 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered p:first-child,
+.lecture-lens-chat-turn-text.markdown-rendered p:first-child {
+	margin-top: 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered p:last-child,
+.lecture-lens-chat-turn-text.markdown-rendered p:last-child {
+	margin-bottom: 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered h1,
+.lecture-lens-chat-turn-body.markdown-rendered h2,
+.lecture-lens-chat-turn-body.markdown-rendered h3,
+.lecture-lens-chat-turn-body.markdown-rendered h4,
+.lecture-lens-chat-turn-text.markdown-rendered h1,
+.lecture-lens-chat-turn-text.markdown-rendered h2,
+.lecture-lens-chat-turn-text.markdown-rendered h3,
+.lecture-lens-chat-turn-text.markdown-rendered h4 {
+	margin: 0.85em 0 0.4em;
+	line-height: 1.35;
+	font-weight: 650;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered h1:first-child,
+.lecture-lens-chat-turn-body.markdown-rendered h2:first-child,
+.lecture-lens-chat-turn-body.markdown-rendered h3:first-child,
+.lecture-lens-chat-turn-text.markdown-rendered h1:first-child,
+.lecture-lens-chat-turn-text.markdown-rendered h2:first-child,
+.lecture-lens-chat-turn-text.markdown-rendered h3:first-child {
+	margin-top: 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered ul,
+.lecture-lens-chat-turn-body.markdown-rendered ol,
+.lecture-lens-chat-turn-text.markdown-rendered ul,
+.lecture-lens-chat-turn-text.markdown-rendered ol {
+	margin: 0.45em 0;
+	padding-left: 1.4em;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered table,
+.lecture-lens-chat-turn-text.markdown-rendered table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 0.65em 0;
+	font-size: calc(var(--lecture-lens-chat-message-font-size, 14px) * 0.92);
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered th,
+.lecture-lens-chat-turn-body.markdown-rendered td,
+.lecture-lens-chat-turn-text.markdown-rendered th,
+.lecture-lens-chat-turn-text.markdown-rendered td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 6px 10px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered th,
+.lecture-lens-chat-turn-text.markdown-rendered th {
+	background: var(--background-secondary);
+	font-weight: 600;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered pre,
+.lecture-lens-chat-turn-text.markdown-rendered pre {
+	overflow-x: auto;
+	border-radius: 8px;
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	margin: 0.55em 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered code,
+.lecture-lens-chat-turn-text.markdown-rendered code {
+	font-size: calc(var(--lecture-lens-chat-message-font-size, 14px) * 0.9);
+	border-radius: 4px;
+	padding: 0.1em 0.35em;
+	background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered pre code,
+.lecture-lens-chat-turn-text.markdown-rendered pre code {
+	padding: 0;
+	background: transparent;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered blockquote,
+.lecture-lens-chat-turn-text.markdown-rendered blockquote {
+	margin: 0.55em 0;
+	padding: 0.35em 0 0.35em 0.85em;
+	border-left: 3px solid var(--interactive-accent);
+	color: var(--text-muted);
+	background: color-mix(in srgb, var(--interactive-accent) 4%, transparent);
+	border-radius: 0 6px 6px 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered .math-block,
+.lecture-lens-chat-turn-text.markdown-rendered .math-block {
+	overflow-x: auto;
+	margin: 0.55em 0;
+	padding: 0.35em 0;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered hr,
+.lecture-lens-chat-turn-text.markdown-rendered hr {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 0.85em 0;
+}
+
+.lecture-lens-chat-typing {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 18px;
+}
+
+.lecture-lens-chat-typing span {
+	width: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: var(--text-muted);
+	animation: lecture-lens-typing 1.2s infinite ease-in-out;
+}
+
+.lecture-lens-chat-typing span:nth-child(2) {
+	animation-delay: 0.15s;
+}
+
+.lecture-lens-chat-typing span:nth-child(3) {
+	animation-delay: 0.3s;
+}
+
+@keyframes lecture-lens-typing {
+	0%,
+	80%,
+	100% {
+		opacity: 0.35;
+		transform: translateY(0);
+	}
+	40% {
+		opacity: 1;
+		transform: translateY(-2px);
+	}
+}
+
+.lecture-lens-chat-vision-relay-status {
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: 0.82rem;
+	color: var(--text-muted);
+	line-height: 1.5;
+}
+
+.lecture-lens-chat-composer {
+	flex-shrink: 0;
+	padding: 4px var(--ll-chat-gutter) 8px;
+	background: var(--background-primary);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-composer-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: var(--background-secondary);
+	box-shadow: var(--ll-shadow);
+	padding: 6px 8px 8px;
+}
+
+.lecture-lens-chat-input-row {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.lecture-lens-chat-input-row .lecture-lens-chat-send-btn {
+	margin-bottom: 2px;
+}
+
+.lecture-lens-chat-chips,
+.lecture-lens-chat-image-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 6px;
+	min-height: 0;
+}
+
+.lecture-lens-chat-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	padding: 4px 10px 4px 8px;
+	border-radius: 999px;
+	font-size: 0.74rem;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.lecture-lens-chat-chip-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
+.lecture-lens-chat-chip.is-active {
+	color: var(--text-normal);
+	border-color: var(--ll-accent-border);
+	background: var(--ll-accent-soft);
+}
+
+.lecture-lens-chat-chip.is-attached {
+	cursor: default;
+	color: var(--text-normal);
+}
+
+.lecture-lens-chat-chip.is-muted {
+	cursor: default;
+	border-style: dashed;
+	opacity: 0.85;
+}
+
+.lecture-lens-chat-chip-remove {
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0 2px;
+	line-height: 1;
+	font-size: 1.05em;
+	border-radius: 4px;
+}
+
+.lecture-lens-chat-chip-remove:hover {
+	color: var(--text-error);
+	background: color-mix(in srgb, var(--text-error) 10%, transparent);
+}
+
+.lecture-lens-chat-image-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	pointer-events: none;
+}
+
+.lecture-lens-chat-image-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px 4px 4px;
+	border-radius: 10px;
+	border: 1px solid var(--ll-accent-border);
+	background: var(--ll-accent-soft);
+	max-width: 100%;
+}
+
+.lecture-lens-chat-image-thumb {
+	width: 44px;
+	height: 44px;
+	object-fit: cover;
+	border-radius: 8px;
+	flex-shrink: 0;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-image-name {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 140px;
+}
+
+.lecture-lens-chat-user-images {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.lecture-lens-chat-user-image {
+	max-width: 180px;
+	max-height: 180px;
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+	object-fit: contain;
+	background: var(--background-primary);
+	box-shadow: var(--ll-shadow);
+}
+
+.lecture-lens-chat-input {
+	width: 100%;
+	box-sizing: border-box;
+	resize: none;
+	overflow-y: hidden;
+	height: var(--ll-input-height, auto);
+	border-radius: 8px;
+	padding: 8px 10px;
+	border: 1px solid transparent;
+	background: var(--background-primary);
+	min-height: 36px;
+	max-height: 140px;
+	font-size: 0.88rem;
+	line-height: 1.45;
+	flex: 1;
+}
+
+.lecture-lens-chat-input:focus {
+	border-color: var(--ll-accent-border);
+	outline: none;
+	box-shadow: 0 0 0 2px var(--ll-accent-soft);
+}
+
+.lecture-lens-chat-input--scroll {
+	overflow-y: auto;
+}
+
+.lecture-lens-chat-input::placeholder {
+	color: var(--text-faint);
+}
+
+.lecture-lens-chat-footer {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 4px;
+	padding-top: 4px;
+}
+
+.lecture-lens-chat-model-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 8px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-model-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.lecture-lens-chat-model-label {
+	flex-shrink: 0;
+	font-size: 0.68rem;
+	color: var(--text-faint);
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-model-select {
+	font-size: 0.76rem;
+	padding: 3px 8px;
+	border-radius: 8px;
+	max-width: 140px;
+}
+
+.lecture-lens-chat-model-select-wide {
+	max-width: 220px;
+}
+
+.lecture-lens-chat-footer-tools {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.lecture-lens-chat-footer-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex: 1;
+}
+
+.lecture-lens-chat-input-hint {
+	display: none;
+}
+
+.lecture-lens-chat-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease,
+		background 0.15s ease,
+		transform 0.1s ease;
+}
+
+.lecture-lens-chat-icon-btn svg {
+	width: 15px;
+	height: 15px;
+}
+
+.lecture-lens-chat-icon-btn:hover {
+	color: var(--interactive-accent);
+	border-color: var(--ll-accent-border);
+	background: var(--ll-accent-soft);
+}
+
+.lecture-lens-chat-icon-btn:active {
+	transform: scale(0.96);
+}
+
+.lecture-lens-chat-copy-btn {
+	width: 26px;
+	height: 26px;
+}
+
+.lecture-lens-chat-send-btn {
+	flex-shrink: 0;
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: var(--ll-shadow);
+	transition:
+		transform 0.1s ease,
+		opacity 0.15s ease;
+}
+
+.lecture-lens-chat-send-btn svg {
+	width: 16px;
+	height: 16px;
+}
+
+.lecture-lens-chat-send-btn:hover:not(:disabled) {
+	transform: translateY(-1px);
+}
+
+.lecture-lens-chat-send-btn:disabled,
+.lecture-lens-chat-send-btn.is-loading {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.lecture-lens-chat-toolbar {
+	display: flex;
+	flex-shrink: 0;
+	padding: 4px var(--ll-chat-gutter);
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: color-mix(in srgb, var(--background-secondary) 40%, var(--background-primary));
+}
+
+.lecture-lens-chat-toolbar-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.lecture-lens-chat-toolbar-row-session {
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.lecture-lens-chat-toolbar-label {
+	flex-shrink: 0;
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-select {
+	flex: 1;
+	min-width: 0;
+	max-width: 100%;
+	font-size: 0.78rem;
+	padding: 4px 8px;
+	border-radius: 8px;
+}
+
+.lecture-lens-chat-toolbar-actions {
+	display: flex;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+.lecture-lens-profile-list {
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	overflow: hidden;
+	background: var(--background-secondary);
+}
+
+.lecture-lens-profile-row {
+	margin: 0;
+	border: none;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: transparent;
+}
+
+.lecture-lens-profile-row:last-of-type {
+	border-bottom: none;
+}
+
+.lecture-lens-profile-row.is-expanded {
+	background: color-mix(in srgb, var(--interactive-accent) 4%, var(--background-secondary));
+}
+
+.lecture-lens-profile-details {
+	padding: 0 0 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.lecture-lens-profile-details .setting-item {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-profile-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	padding: 8px 12px 12px;
+	background: var(--background-secondary);
+}
+
+.lecture-lens-profile-card-title {
+	font-weight: 600;
+	margin: 4px 0 8px;
+	color: var(--text-normal);
+}
+
+.lecture-lens-profile-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 4px 18px 10px;
+	padding-top: 4px;
+}
+
+/* Chat context panel */
+.lecture-lens-chat-context {
+	flex-shrink: 0;
+	padding: 0 var(--ll-chat-gutter) 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: color-mix(in srgb, var(--background-secondary) 35%, var(--background-primary));
+}
+
+.lecture-lens-chat-context-panel {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	background: var(--background-secondary);
+	overflow: hidden;
+}
+
+.lecture-lens-chat-context-summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 10px;
+	cursor: pointer;
+	list-style: none;
+	font-size: 0.76rem;
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-context-summary::-webkit-details-marker {
+	display: none;
+}
+
+.lecture-lens-chat-context-summary-icon svg {
+	width: 14px;
+	height: 14px;
+	color: var(--interactive-accent);
+}
+
+.lecture-lens-chat-context-summary-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-context-body {
+	padding: 0 10px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.lecture-lens-chat-context-toggles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 14px;
+}
+
+.lecture-lens-chat-context-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.lecture-lens-chat-context-hint,
+.lecture-lens-chat-context-empty-line {
+	margin: 0;
+	font-size: 0.72rem;
+	color: var(--text-faint);
+	line-height: 1.45;
+}
+
+.lecture-lens-chat-context-section-title {
+	font-size: 0.72rem;
+	font-weight: 650;
+	color: var(--text-normal);
+	margin-bottom: 6px;
+}
+
+.lecture-lens-chat-context-budget-bar {
+	height: 8px;
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+	overflow: hidden;
+}
+
+.lecture-lens-chat-context-budget-bar.is-warning {
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-warning, #d29922) 45%, transparent);
+}
+
+.lecture-lens-chat-context-budget-fill {
+	display: flex;
+	height: 100%;
+	min-width: 0;
+	width: 100%;
+}
+
+.lecture-lens-chat-context-budget-segment {
+	display: block;
+	height: 100%;
+	min-width: 2px;
+}
+
+.lecture-lens-chat-context-budget-meta {
+	margin-top: 4px;
+	font-size: 0.68rem;
+	color: var(--text-faint);
+}
+
+.lecture-lens-chat-context-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 10px;
+}
+
+.lecture-lens-chat-context-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 0.68rem;
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-context-legend-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	flex-shrink: 0;
+}
+
+.lecture-lens-chat-context-history-list,
+.lecture-lens-chat-context-note-list,
+.lecture-lens-chat-context-rag-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.lecture-lens-chat-context-history-item {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	gap: 6px;
+	align-items: center;
+	padding: 5px 8px;
+	border-radius: 8px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: 0.72rem;
+}
+
+.lecture-lens-chat-context-history-role {
+	font-weight: 600;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-context-history-item.is-user .lecture-lens-chat-context-history-role {
+	color: var(--interactive-accent);
+}
+
+.lecture-lens-chat-context-history-preview {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-normal);
+}
+
+.lecture-lens-chat-context-history-meta {
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.lecture-lens-chat-context-note-item {
+	padding: 6px 8px;
+	border-radius: 8px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.lecture-lens-chat-context-note-meta {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 0.72rem;
+	margin-bottom: 4px;
+}
+
+.lecture-lens-chat-context-note-name {
+	font-weight: 600;
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lecture-lens-chat-context-note-size {
+	color: var(--text-faint);
+	flex-shrink: 0;
+}
+
+.lecture-lens-chat-context-note-bar {
+	height: 4px;
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+	overflow: hidden;
+}
+
+.lecture-lens-chat-context-note-bar-fill {
+	display: block;
+	height: 100%;
+	background: var(--ll-context-notes);
+}
+
+.lecture-lens-chat-context-note-bar-fill.is-truncated {
+	background: color-mix(in srgb, var(--text-warning, #d29922) 70%, var(--ll-context-notes));
+}
+
+.lecture-lens-chat-context-note-truncated {
+	display: inline-block;
+	margin-top: 4px;
+	font-size: 0.66rem;
+	color: var(--text-warning, #d29922);
+}
+
+.lecture-lens-chat-context-rag-item {
+	padding: 6px 8px;
+	border-radius: 8px;
+	background: var(--background-primary);
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 20%, var(--background-modifier-border));
+}
+
+.lecture-lens-chat-context-rag-score-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.lecture-lens-chat-context-rag-score-label {
+	font-size: 0.68rem;
+	font-weight: 600;
+	color: var(--interactive-accent);
+	min-width: 4.5em;
+}
+
+.lecture-lens-chat-context-rag-score-bar {
+	flex: 1;
+	height: 4px;
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+	overflow: hidden;
+}
+
+.lecture-lens-chat-context-rag-score-fill {
+	display: block;
+	height: 100%;
+	background: var(--ll-context-rag);
+}
+
+.lecture-lens-chat-context-rag-source {
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-normal);
+	margin-bottom: 2px;
+	word-break: break-word;
+}
+
+.lecture-lens-chat-context-rag-preview {
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	line-height: 1.4;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.lecture-lens-chat-context-rag-issue,
+.lecture-lens-chat-context-rag-filtered {
+	margin: 0 0 4px;
+	font-size: 0.68rem;
+	color: var(--text-muted);
+}
+
+.lecture-lens-chat-context-rag-filtered {
+	color: var(--text-faint);
+}
+

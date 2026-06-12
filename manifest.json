@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-lecture-lens",
+	"id": "lecture-lens",
 	"name": "Lecture Lens",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "An AI assistant for slides OCR and course review.",
-	"author": "Yima",
+	"description": "Turn lecture PDFs and course materials into structured Markdown notes with LLM chat and RAG.",
+	"author": "Yima Gu",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",
 	"isDesktopOnly": false

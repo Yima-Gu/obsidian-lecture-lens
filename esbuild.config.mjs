@@ -1,6 +1,20 @@
 import esbuild from "esbuild";
 import process from "process";
-import { builtinModules } from 'node:module';
+import path from "node:path";
+import fs from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { builtinModules } from "node:module";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TRANSFORMERS_DIST = path.resolve(__dirname, "node_modules/@xenova/transformers/dist");
+const TRANSFORMERS_SOURCE = path.resolve(TRANSFORMERS_DIST, "transformers.min.js");
+const TRANSFORMERS_OUTPUT = path.resolve(__dirname, "transformers.min.js");
+const PDF_WORKER_SOURCE = path.resolve(
+	__dirname,
+	"node_modules/pdfjs-dist/build/pdf.worker.min.mjs"
+);
+const PDF_WORKER_OUTPUT = path.resolve(__dirname, "pdf.worker.min.mjs");
+const ONNX_WASM_FILES = ["ort-wasm-simd.wasm", "ort-wasm.wasm"];
 
 const banner =
 `/*
@@ -9,7 +23,22 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-const prod = (process.argv[2] === "production");
+const prod = process.argv[2] === "production";
+
+async function copyRuntimeAssets() {
+	await fs.copyFile(TRANSFORMERS_SOURCE, TRANSFORMERS_OUTPUT);
+	console.log("Copied transformers.min.js to plugin root");
+
+	await fs.copyFile(PDF_WORKER_SOURCE, PDF_WORKER_OUTPUT);
+	console.log("Copied pdf.worker.min.mjs to plugin root");
+
+	for (const fileName of ONNX_WASM_FILES) {
+		const source = path.resolve(TRANSFORMERS_DIST, fileName);
+		const target = path.resolve(__dirname, fileName);
+		await fs.copyFile(source, target);
+		console.log(`Copied ${fileName} to plugin root`);
+	}
+}
 
 const context = await esbuild.context({
 	banner: {
@@ -17,6 +46,8 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["src/main.ts"],
 	bundle: true,
+	platform: "browser",
+	mainFields: ["browser", "module", "main"],
 	external: [
 		"obsidian",
 		"electron",
@@ -31,7 +62,8 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtinModules],
+		...builtinModules,
+	],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
@@ -39,11 +71,23 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	plugins: [
+		{
+			name: "copy-runtime-assets",
+			setup(build) {
+				build.onEnd(async (result) => {
+					if (result.errors.length > 0) return;
+					await copyRuntimeAssets();
+				});
+			},
+		},
+	],
 });
 
 if (prod) {
 	await context.rebuild();
 	process.exit(0);
 } else {
+	await copyRuntimeAssets();
 	await context.watch();
 }

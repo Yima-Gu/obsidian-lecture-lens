@@ -11,6 +11,10 @@ node_modules
 # Don't include the compiled main.js file in the repo.
 # They should be uploaded to GitHub releases instead.
 main.js
+transformers.min.js
+ort-wasm-simd.wasm
+ort-wasm.wasm
+pdf.worker.min.mjs
 
 # Exclude sourcemaps
 *.map

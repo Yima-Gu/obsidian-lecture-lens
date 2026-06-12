@@ -18,7 +18,7 @@ export const PROVIDER_PRESETS: Record<Exclude<ApiProvider, "Custom">, ProviderPr
 	},
 	DeepSeek: {
 		baseUrl: "https://api.deepseek.com",
-		modelName: "deepseek-v4-flash",
+		modelName: "deepseek-v4-pro",
 		embeddingModelName: "text-embedding-3-small",
 		supportsVision: false,
 	},
@@ -36,28 +36,58 @@ export const PROVIDER_PRESETS: Record<Exclude<ApiProvider, "Custom">, ProviderPr
 	},
 };
 
-const TEXT_ONLY_MODELS = new Set([
-	"deepseek-v4-flash",
-	"deepseek-v4-pro",
-	"deepseek-chat",
-	"deepseek-reasoner",
-]);
+/** Legacy DeepSeek chat models without native multimodal input. */
+const TEXT_ONLY_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
 
-export const VISION_MODEL_SUGGESTIONS: Partial<Record<ApiProvider, string[]>> = {
-	OpenAI: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
-	DeepSeek: ["deepseek-vl2", "deepseek-v4-flash", "deepseek-v4-pro"],
+export const CHAT_MODEL_OPTIONS: Partial<Record<ApiProvider, string[]>> = {
+	OpenAI: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini", "o3-mini"],
+	DeepSeek: [
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
+		"deepseek-chat",
+		"deepseek-reasoner",
+		"deepseek-vl2",
+	],
 	Kimi: [
 		"moonshot-v1-8k-vision-preview",
 		"moonshot-v1-32k-vision-preview",
 		"moonshot-v1-128k-vision-preview",
 		"moonshot-v1-8k",
 		"moonshot-v1-32k",
+		"moonshot-v1-128k",
 	],
-	Gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+	Gemini: [
+		"gemini-2.5-pro-preview",
+		"gemini-2.0-flash",
+		"gemini-1.5-pro",
+		"gemini-1.5-flash",
+	],
 };
+
+/** @deprecated Use CHAT_MODEL_OPTIONS */
+export const VISION_MODEL_SUGGESTIONS = CHAT_MODEL_OPTIONS;
+
+export function getChatModelsForProvider(provider: ApiProvider, currentModel?: string): string[] {
+	const presets = CHAT_MODEL_OPTIONS[provider];
+	if (presets?.length) {
+		const models = [...presets];
+		const trimmed = currentModel?.trim();
+		if (trimmed && !models.includes(trimmed)) {
+			models.unshift(trimmed);
+		}
+		return models;
+	}
+	const trimmed = currentModel?.trim();
+	return trimmed ? [trimmed] : [];
+}
 
 export function applyProviderPreset(provider: Exclude<ApiProvider, "Custom">): ProviderPreset {
 	return { ...PROVIDER_PRESETS[provider] };
+}
+
+/** Whether the chat provider exposes an OpenAI-compatible /embeddings endpoint at its base URL. */
+export function providerSupportsEmbeddings(provider: ApiProvider): boolean {
+	return provider === "OpenAI" || provider === "Gemini" || provider === "Custom";
 }
 
 export function modelSupportsVisionApi(
@@ -82,8 +112,15 @@ export function modelSupportsVisionApi(
 		return true;
 	}
 	if (provider === "Kimi" && name.includes("vision")) return true;
+	if (provider === "DeepSeek" && deepSeekModelSupportsVision(name)) return true;
 
 	return false;
+}
+
+function deepSeekModelSupportsVision(modelName: string): boolean {
+	if (TEXT_ONLY_MODELS.has(modelName)) return false;
+	if (modelName.includes("v4-flash")) return false;
+	return modelName.includes("v4-pro") || modelName.includes("-vl");
 }
 
 export function providerSupportsVision(
@@ -92,6 +129,8 @@ export function providerSupportsVision(
 	supportsVisionSetting: boolean
 ): boolean {
 	if (!supportsVisionSetting) return false;
+	// Official DeepSeek chat API rejects image_url content parts (text-only).
+	if (provider === "DeepSeek") return false;
 	return modelSupportsVisionApi(provider, modelName, true);
 }
 
@@ -109,7 +148,12 @@ function inferVisionFromModelName(modelName: string): boolean {
 
 export function isVisionApiError(message: string): boolean {
 	const lower = message.toLowerCase();
-	return lower.includes("image_url") && lower.includes("expected");
+	return (
+		(lower.includes("image_url") &&
+			(lower.includes("expected") || lower.includes("unknown variant"))) ||
+		lower.includes("does not support image") ||
+		lower.includes("multimodal")
+	);
 }
 
 const PROVIDER_ORDER_EN: ApiProvider[] = ["OpenAI", "DeepSeek", "Kimi", "Gemini", "Custom"];

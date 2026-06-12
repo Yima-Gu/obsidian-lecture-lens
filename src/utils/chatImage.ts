@@ -1,3 +1,5 @@
+import { arrayBufferToBase64 } from "./base64";
+
 const MAX_CHAT_IMAGE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
 	"image/png",
@@ -13,20 +15,6 @@ export interface ChatImageAttachment {
 	mimeType: string;
 	previewUrl: string;
 	name: string;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-	// eslint-disable-next-line no-undef
-	if (typeof Buffer !== "undefined") return Buffer.from(buffer).toString("base64");
-
-	const bytes = new Uint8Array(buffer);
-	let binary = "";
-	const chunkSize = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunkSize) {
-		const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-		binary += String.fromCharCode(...chunk);
-	}
-	return btoa(binary);
 }
 
 function normalizeMimeType(mimeType: string): string {

@@ -1,17 +1,29 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { UiLanguage } from "./i18n";
-import { applyProviderPreset, getProviderDropdownOptions, PROVIDER_PRESETS, VISION_MODEL_SUGGESTIONS } from "./constants/providers";
+import { EmbeddingMode } from "./services/embeddingConfig";
+import { renderEmbeddingModelDownloadSection } from "./settings/embeddingModelSection";
+import { renderLlmProfilesSection } from "./settings/llmProfilesSection";
+import { renderVisionRelaySection } from "./settings/visionRelaySection";
+import { LlmProfile } from "./types/llmProfile";
+import { createDefaultProfiles } from "./types/llmProfile";
+import { providerSupportsEmbeddings } from "./constants/providers";
+import {
+	DEFAULT_HF_MIRROR_URL,
+	DEFAULT_LOCAL_EMBEDDING_MODEL,
+	LOCAL_EMBEDDING_MODELS,
+} from "./constants/localEmbeddingModels";
 import { canEncryptSecrets } from "./services/secretStorage";
+import { canonicalizeCourseFolderInput, hasCourseFolderInput } from "./utils/vaultPath";
+import { VaultFolderSuggestModal } from "./ui/folderSuggestModal";
+import {
+	CHAT_MESSAGE_FONT_SIZE_MAX,
+	CHAT_MESSAGE_FONT_SIZE_MIN,
+	DEFAULT_CHAT_MESSAGE_FONT_SIZE,
+} from "./constants/chatAppearance";
 import LectureLensPlugin from "./main";
-import { LLMServiceError } from "./services/llm";
 
 export type ApiProvider = "OpenAI" | "DeepSeek" | "Kimi" | "Gemini" | "Custom";
-
-export interface PromptTemplate {
-	name: string;
-	prompt: string;
-}
 
 export interface LectureLensSettings {
 	uiLanguage: UiLanguage;
@@ -20,16 +32,29 @@ export interface LectureLensSettings {
 	baseUrl: string;
 	modelName: string;
 	supportsVision: boolean;
-	promptTemplates: PromptTemplate[];
+	llmProfiles: LlmProfile[];
+	defaultLlmProfileId: string;
 	courseFolderPath: string;
+	pdfNotesOutputFolder: string;
+	pdfNotesMaxPages: number;
+	pdfNotesSkipMerge: boolean;
+	embeddingMode: EmbeddingMode;
+	localEmbeddingModel: string;
+	hfMirrorUrl: string;
+	embeddingBaseUrl: string;
+	embeddingApiKey: string;
 	embeddingModelName: string;
 	ragEnabled: boolean;
 	ragTopK: number;
-	enablePasteOcr: boolean;
-	pasteImageFolder: string;
-	autoAnalyzeOnPaste: boolean;
 	autoAttachCurrentNote: boolean;
 	maxNoteContextChars: number;
+	chatMessageFontSize: number;
+	chatHistoryTurnLimit: number;
+	chatRagMinScore: number;
+	chatContextBudgetChars: number;
+	/** When chat model is text-only (e.g. DeepSeek), use this profile to read images first. */
+	visionRelayEnabled: boolean;
+	visionRelayProfileId: string;
 }
 
 export const DEFAULT_SETTINGS: LectureLensSettings = {
@@ -39,29 +64,31 @@ export const DEFAULT_SETTINGS: LectureLensSettings = {
 	baseUrl: "https://api.openai.com/v1",
 	modelName: "gpt-4o",
 	supportsVision: true,
-	promptTemplates: [
-		{
-			name: "Lecture Notes",
-			prompt: "Analyze this slide and extract structured notes.",
-		},
-		{
-			name: "Extract Math",
-			prompt: "Extract all mathematical formulas and output them strictly in LaTeX block format.",
-		},
-		{
-			name: "Chart to Mermaid",
-			prompt: "Analyze this flowchart/diagram and convert it into Mermaid.js code.",
-		},
-	],
+	llmProfiles: (() => {
+		const profiles = createDefaultProfiles();
+		return profiles;
+	})(),
+	defaultLlmProfileId: "",
 	courseFolderPath: "",
+	pdfNotesOutputFolder: "",
+	pdfNotesMaxPages: 120,
+	pdfNotesSkipMerge: false,
+	embeddingMode: "local",
+	localEmbeddingModel: DEFAULT_LOCAL_EMBEDDING_MODEL,
+	hfMirrorUrl: DEFAULT_HF_MIRROR_URL,
+	embeddingBaseUrl: "",
+	embeddingApiKey: "",
 	embeddingModelName: "text-embedding-3-small",
 	ragEnabled: true,
 	ragTopK: 5,
-	enablePasteOcr: true,
-	pasteImageFolder: "attachments",
-	autoAnalyzeOnPaste: false,
 	autoAttachCurrentNote: true,
 	maxNoteContextChars: 6000,
+	chatMessageFontSize: DEFAULT_CHAT_MESSAGE_FONT_SIZE,
+	chatHistoryTurnLimit: 10,
+	chatRagMinScore: 0.25,
+	chatContextBudgetChars: 32000,
+	visionRelayEnabled: true,
+	visionRelayProfileId: "",
 };
 
 export class LectureLensSettingTab extends PluginSettingTab {
@@ -105,284 +132,62 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					})
 			);
 
+		renderLlmProfilesSection(containerEl, this.plugin, tr, () => this.display());
+		renderVisionRelaySection(containerEl, this.plugin, tr);
+
+		new Setting(containerEl).setName(tr("settings.pdfNotes.heading")).setHeading();
+
 		new Setting(containerEl)
-			.setName(tr("settings.apiProvider.name"))
-			.setDesc(tr("settings.apiProvider.desc"))
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOptions(getProviderDropdownOptions(tr, this.plugin.getLocale()))
-					.setValue(this.plugin.settings.apiProvider)
+			.setName(tr("settings.pdfNotesOutputFolder.name"))
+			.setDesc(tr("settings.pdfNotesOutputFolder.desc"))
+			.addText((text) =>
+				text
+					.setPlaceholder(tr("settings.pdfNotesOutputFolder.placeholder"))
+					.setValue(this.plugin.settings.pdfNotesOutputFolder)
 					.onChange(async (value) => {
-						const allowedProviders: ApiProvider[] = [
-							"OpenAI",
-							"DeepSeek",
-							"Kimi",
-							"Gemini",
-							"Custom",
-						];
-						const provider = allowedProviders.find((item) => item === value);
-						if (!provider) {
-							dropdown.setValue(this.plugin.settings.apiProvider);
-							return;
-						}
-						this.plugin.settings.apiProvider = provider;
-						if (provider !== "Custom") {
-							const preset = applyProviderPreset(provider);
-							this.plugin.settings.baseUrl = preset.baseUrl;
-							this.plugin.settings.modelName = preset.modelName;
-							this.plugin.settings.embeddingModelName = preset.embeddingModelName;
-							this.plugin.settings.supportsVision = preset.supportsVision;
-						}
+						this.plugin.settings.pdfNotesOutputFolder = value.trim();
 						await this.plugin.saveSettings();
-						this.display();
+					})
+			)
+			.addButton((button) =>
+				button.setButtonText(tr("settings.courseFolder.browse")).onClick(() => {
+					new VaultFolderSuggestModal(
+						this.app,
+						(folder) => {
+							this.plugin.settings.pdfNotesOutputFolder = folder.path || "";
+							void this.plugin.saveSettings();
+							this.display();
+						},
+						tr("settings.pdfNotesOutputFolder.browseHint")
+					).open();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.pdfNotesMaxPages.name"))
+			.setDesc(tr("settings.pdfNotesMaxPages.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(10, 300, 10)
+					.setValue(this.plugin.settings.pdfNotesMaxPages)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.pdfNotesMaxPages = value;
+						await this.plugin.saveSettings();
 					})
 			);
 
-		if (this.plugin.settings.apiProvider !== "Custom") {
-			const preset = PROVIDER_PRESETS[this.plugin.settings.apiProvider];
-			containerEl.createEl("p", {
-				cls: "setting-item-description lecture-lens-provider-hint",
-				text: tr("settings.apiProvider.presetHint", {
-					baseUrl: preset.baseUrl,
-					model: preset.modelName,
-				}),
-			});
-		}
-
 		new Setting(containerEl)
-			.setName(tr("settings.supportsVision.name"))
-			.setDesc(tr("settings.supportsVision.desc"))
+			.setName(tr("settings.pdfNotesSkipMerge.name"))
+			.setDesc(tr("settings.pdfNotesSkipMerge.desc"))
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.plugin.settings.supportsVision)
+					.setValue(this.plugin.settings.pdfNotesSkipMerge)
 					.onChange(async (value) => {
-						this.plugin.settings.supportsVision = value;
+						this.plugin.settings.pdfNotesSkipMerge = value;
 						await this.plugin.saveSettings();
 					})
 			);
-
-		new Setting(containerEl)
-			.setName(tr("settings.apiKey.name"))
-			.setDesc(
-				tr(canEncryptSecrets() ? "settings.apiKey.descSecure" : "settings.apiKey.descPlain")
-			)
-			.addText((text) => {
-				text
-					.setPlaceholder("sk-...")
-					.setValue(this.plugin.settings.apiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.apiKey = value.trim();
-						await this.plugin.saveSettings();
-					});
-				text.inputEl.type = "password";
-			});
-
-		new Setting(containerEl)
-			.setName(tr("settings.baseUrl.name"))
-			.setDesc(tr("settings.baseUrl.desc"))
-			.addText((text) =>
-				text
-					.setPlaceholder(
-						this.plugin.settings.apiProvider === "DeepSeek"
-							? "https://api.deepseek.com"
-							: "https://api.openai.com/v1"
-					)
-					.setValue(this.plugin.settings.baseUrl)
-					.onChange(async (value) => {
-						const trimmed = value.trim();
-						const isValid = /^https?:\/\//i.test(trimmed);
-						if (!isValid) {
-							text.inputEl.classList.add("lecture-lens-input-error");
-							text.inputEl.setAttribute("aria-invalid", "true");
-							text.inputEl.title = tr("settings.baseUrl.invalidTitle");
-							return;
-						}
-						text.inputEl.classList.remove("lecture-lens-input-error");
-						text.inputEl.removeAttribute("aria-invalid");
-						text.inputEl.removeAttribute("title");
-						this.plugin.settings.baseUrl = trimmed;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName(tr("settings.modelName.name"))
-			.setDesc(tr("settings.modelName.desc"))
-			.addText((text) =>
-				text
-					.setPlaceholder(
-						this.plugin.settings.apiProvider === "DeepSeek"
-							? "deepseek-v4-flash"
-							: "gpt-4o"
-					)
-					.setValue(this.plugin.settings.modelName)
-					.onChange(async (value) => {
-						this.plugin.settings.modelName = value.trim();
-						await this.plugin.saveSettings();
-					})
-			);
-
-		const visionModels = VISION_MODEL_SUGGESTIONS[this.plugin.settings.apiProvider];
-		if (visionModels && visionModels.length > 0) {
-			new Setting(containerEl)
-				.setName(tr("settings.modelPreset.name"))
-				.setDesc(tr("settings.modelPreset.desc"))
-				.addDropdown((dropdown) => {
-					dropdown.addOption("", tr("settings.modelPreset.custom"));
-					for (const model of visionModels) {
-						dropdown.addOption(model, model);
-					}
-					dropdown.setValue(
-						visionModels.includes(this.plugin.settings.modelName)
-							? this.plugin.settings.modelName
-							: ""
-					);
-					dropdown.onChange(async (value) => {
-						if (!value) return;
-						this.plugin.settings.modelName = value;
-						await this.plugin.saveSettings();
-						this.display();
-					});
-				});
-		}
-
-		new Setting(containerEl)
-			.setName(tr("settings.testConnection.name"))
-			.setDesc(tr("settings.testConnection.desc"))
-			.addButton((button) =>
-				button
-					.setButtonText(tr("settings.testConnection.button"))
-					.setCta()
-					.onClick(async () => {
-						button.setButtonText(tr("settings.testConnection.testing")).setDisabled(true);
-
-						try {
-							const response = await this.plugin.llmService.chatCompletion([
-								{
-									role: "user",
-									content: "Hello! Please respond with 'OK' to confirm connection.",
-								},
-							], {
-								max_tokens: 10,
-								temperature: 0,
-							});
-
-							const firstChoice = response.choices[0];
-							const rawContent = firstChoice?.message?.content;
-							const message = typeof rawContent === "string" ? rawContent : tr("settings.testConnection.noResponse");
-							new Notice(
-								tr("settings.testConnection.success", {
-									model: response.model,
-									message,
-								}),
-								5000
-							);
-						} catch (error) {
-							console.error("LLM Connection Error:", error);
-
-							let userMessage = tr("settings.testConnection.errorUnknown");
-
-							if (error instanceof LLMServiceError) {
-								const statusCode = error.statusCode;
-								const errorMsg = error.message.toLowerCase();
-
-								if (statusCode === 401 || errorMsg.includes("unauthorized") || errorMsg.includes("authentication")) {
-									userMessage = tr("settings.testConnection.error401");
-								} else if (statusCode === 404 || errorMsg.includes("not found")) {
-									userMessage = tr("settings.testConnection.error404");
-								} else if (statusCode === 429 || errorMsg.includes("rate limit") || errorMsg.includes("quota")) {
-									userMessage = tr("settings.testConnection.error429");
-								} else if (errorMsg.includes("timeout")) {
-									userMessage = tr("settings.testConnection.errorTimeout");
-								} else {
-									userMessage = tr("settings.testConnection.errorGeneric", {
-										message: error.message.substring(0, 50),
-									});
-								}
-							} else if (error instanceof Error) {
-								const errorMsg = error.message.toLowerCase();
-
-								if (errorMsg.includes("timeout")) {
-									userMessage = tr("settings.testConnection.errorTimeout");
-								} else if (errorMsg.includes("network")) {
-									userMessage = tr("settings.testConnection.errorNetwork");
-								} else {
-									userMessage = tr("settings.testConnection.errorGeneric", {
-										message: error.message.substring(0, 50),
-									});
-								}
-							}
-
-							new Notice(userMessage, 8000);
-						} finally {
-							button.setButtonText(tr("settings.testConnection.button")).setDisabled(false);
-						}
-					})
-			);
-
-		// Prompt templates section
-		new Setting(containerEl).setName(tr("settings.promptTemplates.heading")).setHeading();
-		containerEl.createEl("p", {
-			text: tr("settings.promptTemplates.desc"),
-			cls: "setting-item-description",
-		});
-
-		const templatesContainer = containerEl.createEl("div");
-
-		const renderTemplates = () => {
-			templatesContainer.empty();
-
-			this.plugin.settings.promptTemplates.forEach((template, index) => {
-				const templateSetting = new Setting(templatesContainer)
-					.addText((text) =>
-						text
-							.setPlaceholder(tr("settings.promptTemplates.namePlaceholder"))
-							.setValue(template.name)
-							.onChange(async (value) => {
-								this.plugin.settings.promptTemplates[index]!.name = value;
-								await this.plugin.saveSettings();
-							})
-					)
-					.addTextArea((textArea) => {
-						textArea
-							.setPlaceholder(tr("settings.promptTemplates.promptPlaceholder"))
-							.setValue(template.prompt)
-							.onChange(async (value) => {
-								this.plugin.settings.promptTemplates[index]!.prompt = value;
-								await this.plugin.saveSettings();
-							});
-						textArea.inputEl.rows = 2;
-						textArea.inputEl.addClass("lecture-lens-template-textarea");
-						return textArea;
-					})
-					.addButton((btn) =>
-						btn
-							.setIcon("trash")
-							.setTooltip(tr("settings.promptTemplates.removeTooltip"))
-							.onClick(async () => {
-								this.plugin.settings.promptTemplates.splice(index, 1);
-								await this.plugin.saveSettings();
-								renderTemplates();
-							})
-					);
-				templateSetting.settingEl.addClass("lecture-lens-template-setting");
-			});
-
-			new Setting(templatesContainer).addButton((btn) =>
-				btn
-					.setButtonText(tr("settings.promptTemplates.addButton"))
-					.onClick(async () => {
-						this.plugin.settings.promptTemplates.push({
-							name: tr("settings.promptTemplates.newName"),
-							prompt: "",
-						});
-						await this.plugin.saveSettings();
-						renderTemplates();
-					})
-			);
-		};
-
-		renderTemplates();
 
 		new Setting(containerEl).setName(tr("settings.rag.heading")).setHeading();
 
@@ -413,30 +218,195 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(tr("settings.courseFolder.name"))
-			.setDesc(tr("settings.courseFolder.desc"))
-			.addText((text) =>
-				text
-					.setPlaceholder("Courses/My Course")
-					.setValue(this.plugin.settings.courseFolderPath)
+			.setName(tr("settings.chatMessageFontSize.name"))
+			.setDesc(tr("settings.chatMessageFontSize.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(CHAT_MESSAGE_FONT_SIZE_MIN, CHAT_MESSAGE_FONT_SIZE_MAX, 1)
+					.setValue(this.plugin.settings.chatMessageFontSize)
+					.setDynamicTooltip()
 					.onChange(async (value) => {
-						this.plugin.settings.courseFolderPath = value.trim();
+						await this.plugin.setChatMessageFontSize(value);
+					})
+			);
+
+		new Setting(containerEl).setName(tr("settings.chatContext.heading")).setHeading();
+
+		new Setting(containerEl)
+			.setName(tr("settings.chatHistoryTurnLimit.name"))
+			.setDesc(tr("settings.chatHistoryTurnLimit.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(2, 30, 1)
+					.setValue(this.plugin.settings.chatHistoryTurnLimit)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.chatHistoryTurnLimit = value;
 						await this.plugin.saveSettings();
 					})
 			);
 
 		new Setting(containerEl)
-			.setName(tr("settings.embeddingModel.name"))
-			.setDesc(tr("settings.embeddingModel.desc"))
-			.addText((text) =>
-				text
-					.setPlaceholder("text-embedding-3-small")
-					.setValue(this.plugin.settings.embeddingModelName)
+			.setName(tr("settings.chatContextBudgetChars.name"))
+			.setDesc(tr("settings.chatContextBudgetChars.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(8000, 128000, 1000)
+					.setValue(this.plugin.settings.chatContextBudgetChars)
+					.setDynamicTooltip()
 					.onChange(async (value) => {
-						this.plugin.settings.embeddingModelName = value.trim();
+						this.plugin.settings.chatContextBudgetChars = value;
 						await this.plugin.saveSettings();
 					})
 			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.chatRagMinScore.name"))
+			.setDesc(tr("settings.chatRagMinScore.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(0, 0.8, 0.05)
+					.setValue(this.plugin.settings.chatRagMinScore)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.chatRagMinScore = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.courseFolder.name"))
+			.setDesc(tr("settings.courseFolder.desc"))
+			.addText((text) => {
+				text
+					.setPlaceholder(tr("settings.courseFolder.placeholder"))
+					.setValue(this.plugin.settings.courseFolderPath)
+					.onChange(async (value) => {
+						this.plugin.settings.courseFolderPath = canonicalizeCourseFolderInput(
+							this.app,
+							value
+						);
+						await this.plugin.saveSettings();
+					});
+			})
+			.addButton((button) =>
+				button.setButtonText(tr("settings.courseFolder.browse")).onClick(() => {
+					new VaultFolderSuggestModal(
+						this.app,
+						(folder) => {
+							this.plugin.settings.courseFolderPath = folder.path || "/";
+							void this.plugin.saveSettings();
+							this.display();
+						},
+						tr("settings.courseFolder.browseHint")
+					).open();
+				})
+			);
+
+		if (
+			this.plugin.settings.embeddingMode === "api" &&
+			!providerSupportsEmbeddings(this.plugin.settings.apiProvider)
+		) {
+			containerEl.createEl("p", {
+				cls: "setting-item-description",
+				text: tr("settings.embeddingProviderWarning"),
+			});
+		}
+
+		new Setting(containerEl)
+			.setName(tr("settings.embeddingMode.name"))
+			.setDesc(tr("settings.embeddingMode.desc"))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("local", tr("settings.embeddingMode.local"))
+					.addOption("api", tr("settings.embeddingMode.api"))
+					.setValue(this.plugin.settings.embeddingMode)
+					.onChange(async (value) => {
+						this.plugin.settings.embeddingMode = value as EmbeddingMode;
+						await this.plugin.saveSettings();
+						this.display();
+					})
+			);
+
+		if (this.plugin.settings.embeddingMode === "local") {
+			new Setting(containerEl)
+				.setName(tr("settings.localEmbeddingModel.name"))
+				.setDesc(tr("settings.localEmbeddingModel.desc"))
+				.addDropdown((dropdown) => {
+					for (const model of LOCAL_EMBEDDING_MODELS) {
+						dropdown.addOption(model.id, tr(model.labelKey));
+					}
+					dropdown
+						.setValue(this.plugin.settings.localEmbeddingModel)
+						.onChange(async (value) => {
+							this.plugin.settings.localEmbeddingModel = value;
+							this.plugin.embeddingModelStatusService.clearCache();
+							await this.plugin.saveSettings();
+							this.display();
+						});
+				});
+
+			new Setting(containerEl)
+				.setName(tr("settings.hfMirrorUrl.name"))
+				.setDesc(tr("settings.hfMirrorUrl.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder(DEFAULT_HF_MIRROR_URL)
+						.setValue(this.plugin.settings.hfMirrorUrl)
+						.onChange(async (value) => {
+							this.plugin.settings.hfMirrorUrl = value.trim() || DEFAULT_HF_MIRROR_URL;
+							this.plugin.embeddingModelStatusService.clearCache();
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				);
+
+			renderEmbeddingModelDownloadSection(containerEl, this.plugin, tr, () => this.display());
+		} else {
+			new Setting(containerEl)
+				.setName(tr("settings.embeddingBaseUrl.name"))
+				.setDesc(tr("settings.embeddingBaseUrl.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder("https://api.openai.com/v1")
+						.setValue(this.plugin.settings.embeddingBaseUrl)
+						.onChange(async (value) => {
+							this.plugin.settings.embeddingBaseUrl = value.trim();
+							await this.plugin.saveSettings();
+						})
+				);
+
+			new Setting(containerEl)
+				.setName(tr("settings.embeddingApiKey.name"))
+				.setDesc(
+					canEncryptSecrets()
+						? tr("settings.embeddingApiKey.descSecure")
+						: tr("settings.embeddingApiKey.descPlain")
+				)
+				.addText((text) => {
+					text.inputEl.type = "password";
+					text
+						.setPlaceholder("sk-...")
+						.setValue(this.plugin.settings.embeddingApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.embeddingApiKey = value.trim();
+							await this.plugin.saveSettings();
+						});
+				});
+
+			new Setting(containerEl)
+				.setName(tr("settings.embeddingModel.name"))
+				.setDesc(tr("settings.embeddingModel.desc"))
+				.addText((text) =>
+					text
+						.setPlaceholder("text-embedding-3-small")
+						.setValue(this.plugin.settings.embeddingModelName)
+						.onChange(async (value) => {
+							this.plugin.settings.embeddingModelName = value.trim();
+							await this.plugin.saveSettings();
+						})
+				);
+		}
 
 		new Setting(containerEl)
 			.setName(tr("settings.ragEnabled.name"))
@@ -472,63 +442,36 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					.setButtonText(tr("settings.rebuildIndex.button"))
 					.setCta()
 					.onClick(async () => {
-						const folder = this.plugin.settings.courseFolderPath.trim();
-						if (!folder) {
+						if (!hasCourseFolderInput(this.plugin.settings.courseFolderPath)) {
 							new Notice(tr("settings.rebuildIndex.noFolder"), 5000);
 							return;
 						}
 						button.setDisabled(true).setButtonText(tr("settings.rebuildIndex.indexing"));
 						try {
+							const validation = await this.plugin.getEmbeddingReadyMessage();
+							if (validation) {
+								new Notice(validation, 10000);
+								return;
+							}
+							const progressNotice = new Notice(tr("settings.rebuildIndex.indexing"), 0);
 							const count = await this.plugin.ragService.buildIndex(
-								folder,
-								this.plugin.settings.embeddingModelName
+								this.plugin.settings.courseFolderPath,
+								this.plugin.getEmbeddingRuntimeConfig(),
+								(message: string) => {
+									progressNotice.setMessage(`${tr("settings.rebuildIndex.indexing")}\n${message}`);
+								}
 							);
+							progressNotice.hide();
 							new Notice(tr("settings.rebuildIndex.success", { count }), 5000);
 						} catch (error) {
-							const msg = error instanceof Error ? error.message : tr("notice.unknownError");
-							new Notice(tr("settings.rebuildIndex.failed", { message: msg }), 8000);
+							const msg =
+								error instanceof Error
+									? this.plugin.formatEmbeddingError(error)
+									: tr("notice.unknownError");
+							new Notice(tr("settings.rebuildIndex.failed", { message: msg }), 10000);
 						} finally {
 							button.setDisabled(false).setButtonText(tr("settings.rebuildIndex.button"));
 						}
-					})
-			);
-
-		new Setting(containerEl).setName(tr("settings.clipboard.heading")).setHeading();
-
-		new Setting(containerEl)
-			.setName(tr("settings.enablePasteOcr.name"))
-			.setDesc(tr("settings.enablePasteOcr.desc"))
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enablePasteOcr)
-					.onChange(async (value) => {
-						this.plugin.settings.enablePasteOcr = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName(tr("settings.pasteImageFolder.name"))
-			.setDesc(tr("settings.pasteImageFolder.desc"))
-			.addText((text) =>
-				text
-					.setPlaceholder("attachments")
-					.setValue(this.plugin.settings.pasteImageFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.pasteImageFolder = value.trim() || "attachments";
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName(tr("settings.autoAnalyzeOnPaste.name"))
-			.setDesc(tr("settings.autoAnalyzeOnPaste.desc"))
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoAnalyzeOnPaste)
-					.onChange(async (value) => {
-						this.plugin.settings.autoAnalyzeOnPaste = value;
-						await this.plugin.saveSettings();
 					})
 			);
 	}

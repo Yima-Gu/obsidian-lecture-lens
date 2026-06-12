@@ -1,7 +1,15 @@
 import { App, TFile, TFolder } from "obsidian";
-import { LLMService } from "./llm";
+import { EmbeddingProvider } from "./embeddingProvider";
+import { EmbeddingProgressCallback } from "./localEmbeddingService";
+import { EmbeddingRuntimeConfig } from "./embeddingConfig";
+import {
+	formatCourseFolderNotFound,
+	canonicalizeCourseFolderInput,
+	resolveVaultFolder,
+} from "../utils/vaultPath";
+import { ensurePluginDataDir, resolvePluginDataFile } from "../utils/pluginDataPath";
 
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 const MAX_CHUNK_CHARS = 1200;
 
 export interface RagChunk {
@@ -16,6 +24,7 @@ export interface RagIndex {
 	version: number;
 	courseFolder: string;
 	builtAt: number;
+	embeddingSignature: string;
 	chunks: RagChunk[];
 }
 
@@ -26,7 +35,25 @@ export interface RetrievedChunk {
 	score: number;
 }
 
+export type RagRetrieveIssue =
+	| "no_index"
+	| "signature_mismatch"
+	| "folder_mismatch"
+	| "empty_query";
+
+export interface RagRetrieveResult {
+	chunks: RetrievedChunk[];
+	issue?: RagRetrieveIssue;
+}
+
+export type RagIndexStatus =
+	| { state: "missing" }
+	| { state: "stale_signature" }
+	| { state: "folder_mismatch"; indexFolder: string; currentFolder: string }
+	| { state: "ready"; chunkCount: number; courseFolder: string; builtAt: number };
+
 function cosineSimilarity(a: number[], b: number[]): number {
+	if (!a.length || !b.length) return 0;
 	let dot = 0;
 	let normA = 0;
 	let normB = 0;
@@ -40,7 +67,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 	return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-function chunkMarkdown(filePath: string, content: string): Array<{ heading: string; content: string }> {
+function chunkMarkdown(content: string): Array<{ heading: string; content: string }> {
 	const sections: Array<{ heading: string; content: string }> = [];
 	const lines = content.split("\n");
 	let currentHeading = "Overview";
@@ -75,38 +102,69 @@ function chunkMarkdown(filePath: string, content: string): Array<{ heading: stri
 	return sections;
 }
 
+function normalizeFolderKey(app: App, input: string): string {
+	return canonicalizeCourseFolderInput(app, input) || input.trim();
+}
+
 export class RagService {
 	constructor(
 		private app: App,
 		private pluginId: string,
-		private llmService: LLMService
+		private embeddingProvider: EmbeddingProvider
 	) {}
 
-	private getIndexPath(): string {
-		return `.obsidian/plugins/${this.pluginId}/rag-index.json`;
+	private async getIndexPath(): Promise<string> {
+		return resolvePluginDataFile(this.app, this.pluginId, "rag-index.json");
 	}
 
 	async loadIndex(): Promise<RagIndex | null> {
-		const path = this.getIndexPath();
+		const path = await this.getIndexPath();
 		if (!(await this.app.vault.adapter.exists(path))) {
 			return null;
 		}
 		try {
 			const raw = await this.app.vault.adapter.read(path);
 			const parsed = JSON.parse(raw) as RagIndex;
-			if (parsed.version !== INDEX_VERSION) return null;
+			if (parsed.version !== INDEX_VERSION || !Array.isArray(parsed.chunks)) {
+				return null;
+			}
 			return parsed;
 		} catch {
 			return null;
 		}
 	}
 
-	private async saveIndex(index: RagIndex): Promise<void> {
-		const path = this.getIndexPath();
-		const dir = path.substring(0, path.lastIndexOf("/"));
-		if (!(await this.app.vault.adapter.exists(dir))) {
-			await this.app.vault.adapter.mkdir(dir);
+	async getIndexStatus(
+		courseFolder: string,
+		embedding: EmbeddingRuntimeConfig
+	): Promise<RagIndexStatus> {
+		const index = await this.loadIndex();
+		if (!index || index.chunks.length === 0) {
+			return { state: "missing" };
 		}
+
+		const expectedSignature = this.embeddingProvider.getIndexSignature(embedding);
+		if (index.embeddingSignature !== expectedSignature) {
+			return { state: "stale_signature" };
+		}
+
+		const currentFolder = normalizeFolderKey(this.app, courseFolder);
+		const indexFolder = normalizeFolderKey(this.app, index.courseFolder);
+		if (currentFolder && indexFolder && currentFolder !== indexFolder) {
+			return { state: "folder_mismatch", indexFolder, currentFolder };
+		}
+
+		return {
+			state: "ready",
+			chunkCount: index.chunks.length,
+			courseFolder: index.courseFolder,
+			builtAt: index.builtAt,
+		};
+	}
+
+	private async saveIndex(index: RagIndex): Promise<void> {
+		await ensurePluginDataDir(this.app);
+		const path = await this.getIndexPath();
 		await this.app.vault.adapter.write(path, JSON.stringify(index));
 	}
 
@@ -125,18 +183,48 @@ export class RagService {
 		return files;
 	}
 
-	async buildIndex(courseFolder: string, embeddingModel: string): Promise<number> {
-		const folder = this.app.vault.getAbstractFileByPath(courseFolder);
-		if (!(folder instanceof TFolder)) {
-			throw new Error(`Course folder not found: ${courseFolder}`);
+	private validateEmbeddings(embeddings: number[][], expectedCount: number): void {
+		if (embeddings.length !== expectedCount) {
+			throw new Error(
+				`Embedding count mismatch: expected ${expectedCount}, got ${embeddings.length}.`
+			);
+		}
+		const expectedDim = embeddings[0]?.length ?? 0;
+		if (!expectedDim) {
+			throw new Error("Embedding model returned empty vectors. Check your embedding settings.");
+		}
+		for (let i = 0; i < embeddings.length; i++) {
+			const vector = embeddings[i];
+			if (!vector?.length) {
+				throw new Error(`Embedding failed for chunk ${i + 1}/${expectedCount} (empty vector).`);
+			}
+			if (vector.length !== expectedDim) {
+				throw new Error(
+					`Embedding dimension mismatch at chunk ${i + 1}: expected ${expectedDim}, got ${vector.length}.`
+				);
+			}
+		}
+	}
+
+	async buildIndex(
+		courseFolder: string,
+		embedding: EmbeddingRuntimeConfig,
+		onProgress?: EmbeddingProgressCallback
+	): Promise<number> {
+		const folder = resolveVaultFolder(this.app, courseFolder);
+		if (!folder) {
+			throw new Error(formatCourseFolderNotFound(courseFolder));
 		}
 
+		const normalizedPath = normalizeFolderKey(this.app, courseFolder) || folder.path;
+
 		const mdFiles = this.collectMarkdownFiles(folder);
-		const textChunks: Array<{ id: string; filePath: string; heading: string; content: string }> = [];
+		const textChunks: Array<{ id: string; filePath: string; heading: string; content: string }> =
+			[];
 
 		for (const file of mdFiles) {
 			const content = await this.app.vault.read(file);
-			const sections = chunkMarkdown(file.path, content);
+			const sections = chunkMarkdown(content);
 			for (let i = 0; i < sections.length; i++) {
 				const section = sections[i]!;
 				textChunks.push({
@@ -152,23 +240,22 @@ export class RagService {
 			throw new Error("No markdown content found in the course folder.");
 		}
 
-		const inputs = textChunks.map((c) => `${c.heading}\n\n${c.content}`);
-		const embeddings: number[][] = [];
-		const batchSize = 50;
+		onProgress?.(`Found ${mdFiles.length} notes, ${textChunks.length} chunks.`);
 
-		for (let i = 0; i < inputs.length; i += batchSize) {
-			const batch = inputs.slice(i, i + batchSize);
-			const batchEmbeddings = await this.llmService.createEmbeddings(batch, embeddingModel);
-			embeddings.push(...batchEmbeddings);
-		}
+		const inputs = textChunks.map((c) => `${c.heading}\n\n${c.content}`);
+		const embeddings = await this.embeddingProvider.embedPassages(inputs, embedding, onProgress);
+		this.validateEmbeddings(embeddings, textChunks.length);
+
+		const embeddingSignature = this.embeddingProvider.getIndexSignature(embedding);
 
 		const index: RagIndex = {
 			version: INDEX_VERSION,
-			courseFolder,
+			courseFolder: normalizedPath,
 			builtAt: Date.now(),
+			embeddingSignature,
 			chunks: textChunks.map((chunk, i) => ({
 				...chunk,
-				embedding: embeddings[i] ?? [],
+				embedding: embeddings[i]!,
 			})),
 		};
 
@@ -176,14 +263,38 @@ export class RagService {
 		return index.chunks.length;
 	}
 
-	async retrieve(query: string, embeddingModel: string, topK: number): Promise<RetrievedChunk[]> {
-		const index = await this.loadIndex();
-		if (!index || index.chunks.length === 0) {
-			return [];
+	async retrieve(
+		query: string,
+		courseFolder: string,
+		embedding: EmbeddingRuntimeConfig,
+		topK: number
+	): Promise<RagRetrieveResult> {
+		const trimmedQuery = query.trim();
+		if (!trimmedQuery) {
+			return { chunks: [], issue: "empty_query" };
 		}
 
-		const [queryEmbedding] = await this.llmService.createEmbeddings([query], embeddingModel);
-		if (!queryEmbedding) return [];
+		const index = await this.loadIndex();
+		if (!index || index.chunks.length === 0) {
+			return { chunks: [], issue: "no_index" };
+		}
+
+		const expectedSignature = this.embeddingProvider.getIndexSignature(embedding);
+		if (index.embeddingSignature !== expectedSignature) {
+			console.warn(
+				`RAG index signature mismatch. Index: ${index.embeddingSignature}, current: ${expectedSignature}`
+			);
+			return { chunks: [], issue: "signature_mismatch" };
+		}
+
+		const currentFolder = normalizeFolderKey(this.app, courseFolder);
+		const indexFolder = normalizeFolderKey(this.app, index.courseFolder);
+		if (currentFolder && indexFolder && currentFolder !== indexFolder) {
+			console.warn(`RAG course folder mismatch. Index: ${indexFolder}, current: ${currentFolder}`);
+			return { chunks: [], issue: "folder_mismatch" };
+		}
+
+		const queryEmbedding = await this.embeddingProvider.embedQuery(trimmedQuery, embedding);
 
 		const scored = index.chunks
 			.map((chunk) => ({
@@ -195,16 +306,13 @@ export class RagService {
 			.sort((a, b) => b.score - a.score)
 			.slice(0, topK);
 
-		return scored;
+		return { chunks: scored };
 	}
 
 	formatContext(chunks: RetrievedChunk[]): string {
 		if (chunks.length === 0) return "";
 		return chunks
-			.map(
-				(c, i) =>
-					`[${i + 1}] ${c.filePath} — ${c.heading}\n${c.content}`
-			)
+			.map((c, i) => `[${i + 1}] ${c.filePath} — ${c.heading}\n${c.content}`)
 			.join("\n\n---\n\n");
 	}
 }

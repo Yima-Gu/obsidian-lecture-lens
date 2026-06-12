@@ -2,26 +2,53 @@
 /* eslint-disable obsidianmd/ui/sentence-case */
 import {
 	ItemView,
+	MarkdownView,
 	Notice,
 	setIcon,
 	TFile,
 	WorkspaceLeaf,
 } from "obsidian";
 import { CHAT_VIEW_TYPE } from "../constants";
-import { providerSupportsVision, isVisionApiError } from "../constants/providers";
+import {
+	getChatModelsForProvider,
+	getProviderDropdownOptions,
+	isVisionApiError,
+} from "../constants/providers";
+import { resolveLocale } from "../i18n";
+import {
+	ChatSession,
+	deriveSessionTitle,
+} from "../services/chatHistoryService";
+import { buildChatContext, buildChatContextPreview } from "../services/chatContextService";
+import { ChatContextSnapshot } from "../types/chatContext";
+import { renderContextPanel } from "./chatContextPanel";
+import { ApiProvider } from "../settings";
+import { findProfileByProvider, LlmProfile } from "../types/llmProfile";
 import LectureLensPlugin from "../main";
-import { ChatMessage, LLMService, LLMServiceError } from "../services/llm";
+import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
+import { ChatMessage, LLMServiceError } from "../services/llm";
 import { VaultFileSuggestModal } from "./fileSuggestModal";
 import { debounceRender, renderChatMarkdown } from "../utils/markdownRender";
+import { getCourseFolderDisplayPath, hasCourseFolderInput } from "../utils/vaultPath";
 import {
 	ChatImageAttachment,
 	fileToChatImage,
 } from "../utils/chatImage";
+import {
+	applyAssistantContentToNote,
+	insertIntoNote,
+	resolveTargetMarkdownPath,
+} from "../utils/noteEditorActions";
+import {
+	chatProfileSupportsVision,
+	needsVisionRelay,
+} from "../utils/visionRelayConfig";
 
 interface ChatTurn {
 	role: "user" | "assistant";
 	content: string;
 	images?: Array<{ base64: string; mimeType: string }>;
+	imageDescription?: string;
 }
 
 interface RenderTimerRef {
@@ -35,7 +62,12 @@ interface MessageShell {
 
 export class ChatView extends ItemView {
 	private headerEl!: HTMLElement;
+	private toolbarEl!: HTMLElement;
+	private providerSelectEl!: HTMLSelectElement;
+	private modelSelectEl!: HTMLSelectElement;
+	private sessionSelectEl!: HTMLSelectElement;
 	private scopeEl!: HTMLElement;
+	private bodyEl!: HTMLElement;
 	private messagesEl!: HTMLElement;
 	private chipsEl!: HTMLElement;
 	private imageChipsEl!: HTMLElement;
@@ -43,11 +75,23 @@ export class ChatView extends ItemView {
 	private imageInputEl!: HTMLInputElement;
 	private sendBtn!: HTMLButtonElement;
 	private history: ChatTurn[] = [];
+	private currentSessionId = "";
+	private currentProfileId = "";
+	private currentModelName = "";
 	private attachedFiles: TFile[] = [];
 	private pendingImages: ChatImageAttachment[] = [];
 	private includeCurrentNote = true;
 	private isStreaming = false;
 	private streamRenderTimer: RenderTimerRef = { id: null };
+	private scopeStatusEl: HTMLElement | null = null;
+	private scopeStatusRequest = 0;
+	private contextPanelEl!: HTMLElement;
+	private sessionIncludeRag = true;
+	private sessionIncludeNotes = true;
+	private contextPreviewTimer: number | null = null;
+	private fontSizeValueEl: HTMLElement | null = null;
+	private inputComposing = false;
+	private lastMarkdownPath: string | null = null;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: LectureLensPlugin) {
 		super(leaf);
@@ -74,13 +118,14 @@ export class ChatView extends ItemView {
 		containerEl.addClass("lecture-lens-chat-view");
 
 		this.renderHeader(containerEl);
-		this.scopeEl = containerEl.createEl("div", { cls: "lecture-lens-chat-scope" });
-		this.renderScopeHint();
+		this.renderToolbar(containerEl);
+		this.contextPanelEl = containerEl.createEl("div", { cls: "lecture-lens-chat-context" });
 
-		this.messagesEl = containerEl.createEl("div", { cls: "lecture-lens-chat-messages" });
-		void this.appendMessage("assistant", this.plugin.tr("chat.welcome"), undefined, true);
+		this.bodyEl = containerEl.createEl("div", { cls: "lecture-lens-chat-body" });
+		this.messagesEl = this.bodyEl.createEl("div", { cls: "lecture-lens-chat-messages" });
+		void this.renderScopeHint();
 
-		const composer = containerEl.createEl("div", { cls: "lecture-lens-chat-composer" });
+		const composer = this.bodyEl.createEl("div", { cls: "lecture-lens-chat-composer" });
 		const composerCard = composer.createEl("div", { cls: "lecture-lens-chat-composer-card" });
 
 		this.chipsEl = composerCard.createEl("div", { cls: "lecture-lens-chat-chips" });
@@ -100,16 +145,50 @@ export class ChatView extends ItemView {
 			this.imageInputEl.value = "";
 		});
 
-		this.inputEl = composerCard.createEl("textarea", {
+		const inputRow = composerCard.createEl("div", { cls: "lecture-lens-chat-input-row" });
+		this.inputEl = inputRow.createEl("textarea", {
 			cls: "lecture-lens-chat-input",
 			attr: {
 				placeholder: this.plugin.tr("chat.inputPlaceholder"),
-				rows: "3",
+				rows: "1",
 			},
 		});
 
+		this.sendBtn = inputRow.createEl("button", {
+			cls: "mod-cta lecture-lens-chat-send-btn",
+			attr: { "aria-label": this.plugin.tr("chat.send"), title: this.plugin.tr("chat.send") },
+		});
+		setIcon(this.sendBtn, "send-horizontal");
+
 		const footer = composerCard.createEl("div", { cls: "lecture-lens-chat-footer" });
-		const leftActions = footer.createEl("div", { cls: "lecture-lens-chat-footer-left" });
+		const modelBar = footer.createEl("div", { cls: "lecture-lens-chat-model-bar" });
+
+		const providerGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		providerGroup.createSpan({
+			cls: "lecture-lens-chat-model-label",
+			text: this.plugin.tr("chat.providerSelect"),
+		});
+		this.providerSelectEl = providerGroup.createEl("select", {
+			cls: "dropdown lecture-lens-chat-model-select",
+		});
+		this.providerSelectEl.addEventListener("change", () => {
+			void this.handleProviderChange(this.providerSelectEl.value as ApiProvider);
+		});
+
+		const modelGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		modelGroup.createSpan({
+			cls: "lecture-lens-chat-model-label",
+			text: this.plugin.tr("chat.modelSelect"),
+		});
+		this.modelSelectEl = modelGroup.createEl("select", {
+			cls: "dropdown lecture-lens-chat-model-select lecture-lens-chat-model-select-wide",
+		});
+		this.modelSelectEl.addEventListener("change", () => {
+			void this.handleModelChange(this.modelSelectEl.value);
+		});
+
+		const footerTools = footer.createEl("div", { cls: "lecture-lens-chat-footer-tools" });
+		const leftActions = footerTools.createEl("div", { cls: "lecture-lens-chat-footer-left" });
 
 		const addContextBtn = leftActions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn",
@@ -133,15 +212,16 @@ export class ChatView extends ItemView {
 			text: this.plugin.tr("chat.contextHint"),
 		});
 
-		this.sendBtn = footer.createEl("button", {
-			cls: "mod-cta lecture-lens-chat-send-btn",
-			attr: { "aria-label": this.plugin.tr("chat.send"), title: this.plugin.tr("chat.send") },
-		});
-		setIcon(this.sendBtn, "send-horizontal");
-
 		this.sendBtn.addEventListener("click", () => void this.handleSend());
+		this.inputEl.addEventListener("compositionstart", () => {
+			this.inputComposing = true;
+		});
+		this.inputEl.addEventListener("compositionend", () => {
+			this.inputComposing = false;
+		});
 		this.inputEl.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" && !e.shiftKey) {
+				if (e.isComposing || this.inputComposing) return;
 				e.preventDefault();
 				void this.handleSend();
 				return;
@@ -153,20 +233,52 @@ export class ChatView extends ItemView {
 		this.inputEl.addEventListener("paste", (e) => {
 			void this.handlePasteImages(e);
 		});
+		this.inputEl.addEventListener("input", () => {
+			this.adjustChatInputHeight();
+			this.scheduleContextPreview();
+		});
+		this.adjustChatInputHeight();
+		this.renderContextPanelState(null);
+		void this.refreshContextPreview();
+
+		await this.initializeChatSession();
+		this.applyChatAppearance();
 
 		this.registerEvent(
 			this.app.workspace.on("file-open", () => {
-				this.renderScopeHint();
+				void this.refreshScopeIndexStatus();
 				this.renderContextChips();
+				this.rememberMarkdownPathFromWorkspace();
 			})
 		);
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", (leaf) => {
+				if (leaf?.view instanceof MarkdownView && leaf.view.file?.extension === "md") {
+					this.lastMarkdownPath = leaf.view.file.path;
+				}
+			})
+		);
+		this.rememberMarkdownPathFromWorkspace();
+	}
+
+	private clearStreamRenderTimer(): void {
+		if (this.streamRenderTimer.id !== null) {
+			window.clearTimeout(this.streamRenderTimer.id);
+			this.streamRenderTimer.id = null;
+		}
 	}
 
 	async onClose(): Promise<void> {
-		if (this.streamRenderTimer.id !== null) {
-			window.clearTimeout(this.streamRenderTimer.id);
-		}
+		this.clearStreamRenderTimer();
+		this.clearContextPreviewTimer();
+		await this.persistCurrentSession();
 		this.containerEl.empty();
+	}
+
+	applyChatAppearance(): void {
+		const size = this.plugin.settings.chatMessageFontSize;
+		this.containerEl.style.setProperty("--lecture-lens-chat-message-font-size", `${size}px`);
+		this.fontSizeValueEl?.setText(String(size));
 	}
 
 	private renderHeader(containerEl: HTMLElement): void {
@@ -188,52 +300,388 @@ export class ChatView extends ItemView {
 
 		const actions = this.headerEl.createEl("div", { cls: "lecture-lens-chat-header-actions" });
 
+		this.renderFontSizeControls(actions);
+
 		const indexBtn = actions.createEl("button", {
-			cls: "lecture-lens-chat-text-btn",
-			attr: { title: this.plugin.tr("chat.buildIndex") },
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
+			attr: { "aria-label": this.plugin.tr("chat.buildIndex"), title: this.plugin.tr("chat.buildIndex") },
 		});
 		setIcon(indexBtn, "database");
-		indexBtn.createSpan({ text: this.plugin.tr("chat.buildIndex") });
 		indexBtn.addEventListener("click", () => void this.rebuildIndex());
 
-		const clearBtn = actions.createEl("button", {
-			cls: "lecture-lens-chat-text-btn",
-			attr: { title: this.plugin.tr("chat.clear") },
+		const newChatBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
+			attr: { "aria-label": this.plugin.tr("chat.newChat"), title: this.plugin.tr("chat.newChat") },
 		});
-		setIcon(clearBtn, "trash-2");
-		clearBtn.createSpan({ text: this.plugin.tr("chat.clear") });
-		clearBtn.addEventListener("click", () => {
-			this.history = [];
-			this.messagesEl.empty();
-			void this.appendMessage("assistant", this.plugin.tr("chat.cleared"), undefined, true);
+		setIcon(newChatBtn, "plus");
+		newChatBtn.addEventListener("click", () => void this.startNewChat());
+	}
+
+	private renderFontSizeControls(actions: HTMLElement): void {
+		const group = actions.createEl("div", { cls: "lecture-lens-chat-font-size" });
+		group.createSpan({
+			cls: "lecture-lens-chat-font-size-label",
+			text: this.plugin.tr("chat.fontSize"),
 		});
+
+		const decreaseBtn = group.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-font-size-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.fontSizeDecrease"),
+				title: this.plugin.tr("chat.fontSizeDecrease"),
+			},
+			text: "A−",
+		});
+		decreaseBtn.addEventListener("click", () => {
+			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize - 1);
+		});
+
+		this.fontSizeValueEl = group.createEl("span", {
+			cls: "lecture-lens-chat-font-size-value",
+			text: String(this.plugin.settings.chatMessageFontSize),
+		});
+
+		const increaseBtn = group.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-font-size-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.fontSizeIncrease"),
+				title: this.plugin.tr("chat.fontSizeIncrease"),
+			},
+			text: "A+",
+		});
+		increaseBtn.addEventListener("click", () => {
+			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize + 1);
+		});
+	}
+
+	private renderToolbar(containerEl: HTMLElement): void {
+		this.toolbarEl = containerEl.createEl("div", { cls: "lecture-lens-chat-toolbar" });
+
+		const sessionRow = this.toolbarEl.createEl("div", {
+			cls: "lecture-lens-chat-toolbar-row lecture-lens-chat-toolbar-row-session",
+		});
+		sessionRow.createSpan({
+			cls: "lecture-lens-chat-toolbar-label",
+			text: this.plugin.tr("chat.sessionSelect"),
+		});
+		this.sessionSelectEl = sessionRow.createEl("select", {
+			cls: "dropdown lecture-lens-chat-select",
+		});
+		this.sessionSelectEl.addEventListener("change", () => {
+			void this.switchToSession(this.sessionSelectEl.value);
+		});
+
+		const sessionActions = sessionRow.createEl("div", { cls: "lecture-lens-chat-toolbar-actions" });
+		const deleteBtn = sessionActions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.deleteChat"),
+				title: this.plugin.tr("chat.deleteChat"),
+			},
+		});
+		setIcon(deleteBtn, "trash-2");
+		deleteBtn.addEventListener("click", () => void this.deleteCurrentChat());
+	}
+
+	private async initializeChatSession(): Promise<void> {
+		let activeId = await this.plugin.chatHistoryService.getActiveSessionId();
+		let session = activeId ? await this.plugin.chatHistoryService.getSession(activeId) : null;
+		if (!session) {
+			session = await this.plugin.chatHistoryService.createSession(
+				this.plugin.getDefaultLlmProfile().id,
+				this.plugin.tr("chat.newSessionTitle")
+			);
+		}
+		this.currentSessionId = session.id;
+		this.currentProfileId = session.profileId;
+		const profile = this.plugin.getLlmProfile(session.profileId);
+		this.currentModelName = session.modelName?.trim() || profile.modelName;
+		this.applySessionModel();
+		await this.loadSessionIntoView(session);
+		await this.refreshModelSelectors();
+		await this.refreshSessionSelect();
+		void this.refreshContextPreview();
+	}
+
+	private getEffectiveModelName(): string {
+		return this.currentModelName.trim() || this.getCurrentProfile().modelName;
+	}
+
+	private applySessionModel(): void {
+		const profile = this.getCurrentProfile();
+		this.plugin.applyLlmProfile({
+			...profile,
+			modelName: this.getEffectiveModelName(),
+		});
+	}
+
+	private async refreshModelSelectors(): Promise<void> {
+		const locale = resolveLocale(this.plugin.settings.uiLanguage, this.app);
+		const providerLabels = getProviderDropdownOptions(
+			(key) => this.plugin.tr(key),
+			locale
+		);
+		const currentProvider = this.getCurrentProfile().apiProvider;
+
+		this.providerSelectEl.empty();
+		const seenProviders = new Set<ApiProvider>();
+		for (const profile of this.plugin.settings.llmProfiles) {
+			if (seenProviders.has(profile.apiProvider)) continue;
+			seenProviders.add(profile.apiProvider);
+			const label = providerLabels[profile.apiProvider] ?? profile.name ?? profile.apiProvider;
+			const option = this.providerSelectEl.createEl("option", {
+				value: profile.apiProvider,
+				text: label,
+			});
+			if (profile.apiProvider === currentProvider) {
+				option.selected = true;
+			}
+		}
+
+		this.modelSelectEl.empty();
+		const models = getChatModelsForProvider(currentProvider, this.getEffectiveModelName());
+		if (models.length === 0) {
+			const model = this.getEffectiveModelName();
+			this.modelSelectEl.createEl("option", { value: model, text: model });
+		} else {
+			for (const model of models) {
+				const option = this.modelSelectEl.createEl("option", { value: model, text: model });
+				if (model === this.getEffectiveModelName()) {
+					option.selected = true;
+				}
+			}
+		}
+		this.modelSelectEl.disabled = models.length <= 1 && currentProvider === "Custom";
+	}
+
+	private async refreshSessionSelect(): Promise<void> {
+		const sessions = await this.plugin.chatHistoryService.listSessions();
+		this.sessionSelectEl.empty();
+		for (const session of sessions) {
+			const option = this.sessionSelectEl.createEl("option", {
+				value: session.id,
+				text: session.title || this.plugin.tr("chat.newSessionTitle"),
+			});
+			if (session.id === this.currentSessionId) {
+				option.selected = true;
+			}
+		}
+	}
+
+	private async handleProviderChange(provider: ApiProvider): Promise<void> {
+		const profile = findProfileByProvider(this.plugin.settings.llmProfiles, provider);
+		if (!profile || profile.apiProvider === this.getCurrentProfile().apiProvider) return;
+		this.currentProfileId = profile.id;
+		this.currentModelName = profile.modelName;
+		this.applySessionModel();
+		await this.refreshModelSelectors();
+		await this.persistCurrentSession();
+	}
+
+	private async handleModelChange(modelName: string): Promise<void> {
+		if (!modelName || modelName === this.getEffectiveModelName()) return;
+		this.currentModelName = modelName;
+		this.applySessionModel();
+		await this.persistCurrentSession();
+	}
+
+	private async switchToSession(sessionId: string): Promise<void> {
+		if (!sessionId || sessionId === this.currentSessionId || this.isStreaming) return;
+		await this.persistCurrentSession();
+		const session = await this.plugin.chatHistoryService.getSession(sessionId);
+		if (!session) return;
+		this.currentSessionId = session.id;
+		this.currentProfileId = session.profileId;
+		const profile = this.plugin.getLlmProfile(session.profileId);
+		this.currentModelName = session.modelName?.trim() || profile.modelName;
+		this.applySessionModel();
+		await this.plugin.chatHistoryService.setActiveSessionId(sessionId);
+		await this.refreshModelSelectors();
+		await this.loadSessionIntoView(session);
+		await this.refreshSessionSelect();
+	}
+
+	private async startNewChat(): Promise<void> {
+		if (this.isStreaming) return;
+		await this.persistCurrentSession();
+		const profileId = this.currentProfileId || this.plugin.getDefaultLlmProfile().id;
+		const session = await this.plugin.chatHistoryService.createSession(
+			profileId,
+			this.plugin.tr("chat.newSessionTitle")
+		);
+		this.currentSessionId = session.id;
+		this.currentProfileId = profileId;
+		await this.loadSessionIntoView(session);
+		await this.refreshSessionSelect();
+	}
+
+	private async deleteCurrentChat(): Promise<void> {
+		if (this.isStreaming || !this.currentSessionId) return;
+		await this.plugin.chatHistoryService.deleteSession(this.currentSessionId);
+		let activeId = await this.plugin.chatHistoryService.getActiveSessionId();
+		if (!activeId) {
+			const session = await this.plugin.chatHistoryService.createSession(
+				this.currentProfileId || this.plugin.getDefaultLlmProfile().id,
+				this.plugin.tr("chat.newSessionTitle")
+			);
+			activeId = session.id;
+		}
+		await this.switchToSession(activeId);
+		await this.refreshSessionSelect();
+	}
+
+	private async loadSessionIntoView(session: ChatSession): Promise<void> {
+		this.history = [];
+		this.messagesEl.empty();
+		this.attachedFiles = [];
+		this.pendingImages = [];
+		this.renderContextChips();
+		this.renderImageChips();
+
+		if (session.turns.length === 0) {
+			await this.appendMessage("assistant", this.plugin.tr("chat.welcome"), undefined, true);
+			return;
+		}
+
+		for (const turn of session.turns) {
+			this.history.push({
+				role: turn.role,
+				content: turn.content,
+				imageDescription: turn.imageDescription,
+			});
+			let displayContent = turn.content;
+			if (turn.hasImages && turn.role === "user") {
+				if (turn.imageDescription) {
+					displayContent = `${turn.content}\n\n*${this.plugin.tr("chat.imageRelayNote")}*`;
+				} else {
+					displayContent = `${turn.content}\n\n*${this.plugin.tr("chat.imageNotRestored")}*`;
+				}
+			}
+			await this.appendMessage(turn.role, displayContent);
+		}
+	}
+
+	private async persistCurrentSession(): Promise<void> {
+		if (!this.currentSessionId) return;
+		const session = await this.plugin.chatHistoryService.getSession(this.currentSessionId);
+		if (!session) return;
+
+		session.profileId = this.currentProfileId;
+		session.modelName = this.getEffectiveModelName();
+		session.turns = this.history.map((turn) => ({
+			role: turn.role,
+			content: turn.content,
+			hasImages: Boolean(turn.images?.length),
+			imageDescription: turn.imageDescription,
+		}));
+
+		const firstUser = session.turns.find((turn) => turn.role === "user");
+		if (firstUser?.content.trim()) {
+			session.title = deriveSessionTitle(firstUser.content, this.plugin.tr("chat.newSessionTitle"));
+		} else if (session.turns.length === 0) {
+			session.title = this.plugin.tr("chat.newSessionTitle");
+		}
+
+		await this.plugin.chatHistoryService.saveSession(session);
+		await this.refreshSessionSelect();
+	}
+
+	private getCurrentProfile(): LlmProfile {
+		return this.plugin.getLlmProfile(this.currentProfileId);
 	}
 
 	private renderScopeHint(): void {
-		this.scopeEl.empty();
-		const folder = this.plugin.settings.courseFolderPath.trim();
-		const hasRag = Boolean(folder && this.plugin.settings.ragEnabled);
+		if (!this.messagesEl) return;
 
-		const banner = this.scopeEl.createEl("div", {
-			cls: `lecture-lens-chat-scope-banner ${hasRag ? "is-active" : ""}`,
-		});
-		const iconEl = banner.createEl("span", { cls: "lecture-lens-chat-scope-icon" });
-		setIcon(iconEl, hasRag ? "folder-open" : "info");
+		if (!this.scopeEl) {
+			this.scopeEl = this.messagesEl.createDiv({
+				cls: "lecture-lens-chat-scope lecture-lens-chat-scope-in-messages",
+			});
+			this.messagesEl.prepend(this.scopeEl);
+		} else {
+			this.scopeEl.empty();
+		}
+		this.scopeStatusEl = null;
 
-		const textWrap = banner.createEl("div", { cls: "lecture-lens-chat-scope-text" });
-		textWrap.createEl("div", {
-			cls: "lecture-lens-chat-scope-main",
-			text: hasRag
-				? this.plugin.tr("chat.courseScope", { folder })
-				: this.plugin.tr("chat.ragDisabled"),
+		const hasRag =
+			hasCourseFolderInput(this.plugin.settings.courseFolderPath) &&
+			this.plugin.settings.ragEnabled;
+		const folderPath = hasRag
+			? getCourseFolderDisplayPath(this.app, this.plugin.settings.courseFolderPath) || "/"
+			: "";
+
+		const panel = this.scopeEl.createEl("details", {
+			cls: `lecture-lens-chat-scope-panel ${hasRag ? "is-active" : "is-inactive"}`,
 		});
-		textWrap.createEl("div", {
+
+		const summary = panel.createEl("summary", { cls: "lecture-lens-chat-scope-summary" });
+		const leading = summary.createEl("div", { cls: "lecture-lens-chat-scope-leading" });
+		const iconEl = leading.createEl("span", { cls: "lecture-lens-chat-scope-icon" });
+		setIcon(iconEl, hasRag ? "folder-open" : "folder-x");
+		leading.createEl("span", {
+			cls: `lecture-lens-chat-scope-badge ${hasRag ? "is-on" : "is-off"}`,
+			text: hasRag ? this.plugin.tr("chat.ragStatusOn") : this.plugin.tr("chat.ragStatusOff"),
+		});
+
+		const body = summary.createEl("div", { cls: "lecture-lens-chat-scope-body" });
+		body.createEl("span", {
+			cls: "lecture-lens-chat-scope-label",
+			text: this.plugin.tr("chat.ragScopeLabel"),
+		});
+		body.createEl("span", {
+			cls: "lecture-lens-chat-scope-value",
+			text: hasRag ? folderPath : this.plugin.tr("chat.ragNotConfigured"),
+		});
+		this.scopeStatusEl = body.createEl("span", {
+			cls: "lecture-lens-chat-scope-desc",
+			text: hasRag ? this.plugin.tr("chat.ragScopeLoading") : this.plugin.tr("chat.ragDisabledShort"),
+		});
+
+		const panelBody = panel.createEl("div", { cls: "lecture-lens-chat-scope-panel-body" });
+		panelBody.createEl("p", {
+			cls: "lecture-lens-chat-scope-desc",
+			text: this.plugin.tr("chat.ragScopeDesc"),
+		});
+		panelBody.createEl("p", {
 			cls: "lecture-lens-chat-security-hint",
 			text: this.plugin.tr("chat.contextSecurityHint"),
 		});
+
+		if (hasRag) {
+			void this.refreshScopeIndexStatus();
+		}
+	}
+
+	private async refreshScopeIndexStatus(): Promise<void> {
+		const requestId = ++this.scopeStatusRequest;
+		const status = await this.plugin.ragService.getIndexStatus(
+			this.plugin.settings.courseFolderPath,
+			this.plugin.getEmbeddingRuntimeConfig()
+		);
+		if (requestId !== this.scopeStatusRequest || !this.scopeStatusEl) return;
+
+		let indexStatus = "";
+		switch (status.state) {
+			case "ready":
+				indexStatus = this.plugin.tr("chat.ragIndexReady", { count: status.chunkCount });
+				break;
+			case "stale_signature":
+				indexStatus = this.plugin.tr("chat.ragIndexStale");
+				break;
+			case "folder_mismatch":
+				indexStatus = this.plugin.tr("chat.ragIndexFolderMismatch", {
+					indexFolder: status.indexFolder,
+					currentFolder: status.currentFolder,
+				});
+				break;
+			default:
+				indexStatus = this.plugin.tr("chat.ragIndexMissing");
+		}
+		this.scopeStatusEl.setText(indexStatus);
 	}
 
 	private renderContextChips(): void {
+		if (!this.chipsEl) return;
 		this.chipsEl.empty();
 		const activeFile = this.app.workspace.getActiveFile();
 
@@ -249,6 +697,7 @@ export class ChatView extends ItemView {
 			currentChip.addEventListener("click", () => {
 				this.includeCurrentNote = !this.includeCurrentNote;
 				this.renderContextChips();
+				this.scheduleContextPreview();
 			});
 		}
 
@@ -268,6 +717,7 @@ export class ChatView extends ItemView {
 				event.stopPropagation();
 				this.attachedFiles = this.attachedFiles.filter((item) => item.path !== file.path);
 				this.renderContextChips();
+				this.scheduleContextPreview();
 			});
 		}
 
@@ -280,7 +730,7 @@ export class ChatView extends ItemView {
 	}
 
 	private openImagePicker(): void {
-		if (!this.canUseVision()) {
+		if (!this.canAttachImages()) {
 			this.visionBlockedNotice();
 			return;
 		}
@@ -296,30 +746,48 @@ export class ChatView extends ItemView {
 			if (!this.attachedFiles.some((item) => item.path === file.path)) {
 				this.attachedFiles.push(file);
 				this.renderContextChips();
+				this.scheduleContextPreview();
 			}
 		}).open();
 	}
 
 	private canUseVision(): boolean {
-		return providerSupportsVision(
-			this.plugin.settings.apiProvider,
-			this.plugin.settings.modelName,
-			this.plugin.settings.supportsVision
+		const profile = this.getCurrentProfile();
+		return chatProfileSupportsVision(profile, this.getEffectiveModelName());
+	}
+
+	private canAttachImages(): boolean {
+		return this.canUseVision() || this.plugin.canUseVisionRelay(this.getCurrentProfile(), this.getEffectiveModelName());
+	}
+
+	private willUseVisionRelay(images: ChatImageAttachment[]): boolean {
+		return needsVisionRelay(
+			this.plugin.settings,
+			this.getCurrentProfile(),
+			this.getEffectiveModelName(),
+			images.length > 0
 		);
 	}
 
 	private visionBlockedNotice(): void {
-		const message = !this.plugin.settings.supportsVision
-			? this.plugin.tr("chat.visionRequired")
-			: this.plugin.tr("chat.modelNoVision", { model: this.plugin.settings.modelName });
+		const profile = this.getCurrentProfile();
+		const message =
+			this.plugin.canUseVisionRelay(profile, this.getEffectiveModelName())
+				? this.plugin.tr("chat.visionRelayUnavailable")
+				: profile.apiProvider === "DeepSeek"
+					? this.plugin.tr("chat.deepseekTextOnlyRelayHint")
+					: !profile.supportsVision
+						? this.plugin.tr("chat.visionRequired")
+						: this.plugin.tr("chat.modelNoVision", { model: this.getEffectiveModelName() });
 		new Notice(message, 8000);
 	}
 
 	private formatChatError(error: unknown): string {
 		if (error instanceof LLMServiceError) {
 			if (isVisionApiError(error.message)) {
-				return this.plugin.tr("chat.modelNoVision", {
-					model: this.plugin.settings.modelName,
+				return this.plugin.tr("chat.visionApiRejected", {
+					model: this.getEffectiveModelName(),
+					detail: error.message,
 				});
 			}
 			return error.message;
@@ -368,7 +836,7 @@ export class ChatView extends ItemView {
 		if (imageFiles.length === 0) return;
 		event.preventDefault();
 
-		if (!this.canUseVision()) {
+		if (!this.canAttachImages()) {
 			this.visionBlockedNotice();
 			return;
 		}
@@ -381,6 +849,7 @@ export class ChatView extends ItemView {
 	}
 
 	private renderImageChips(): void {
+		if (!this.imageChipsEl) return;
 		this.imageChipsEl.empty();
 		if (this.pendingImages.length === 0) {
 			this.imageChipsEl.hide();
@@ -409,40 +878,141 @@ export class ChatView extends ItemView {
 
 	private createMessageShell(
 		role: "user" | "assistant",
-		options?: { streaming?: boolean; welcome?: boolean; copyContent?: string }
+		options?: { streaming?: boolean; welcome?: boolean; messageContent?: string }
 	): MessageShell {
 		const root = this.messagesEl.createEl("div", {
-			cls: `lecture-lens-chat-message lecture-lens-chat-${role}`,
+			cls: `lecture-lens-chat-turn lecture-lens-chat-turn-${role}`,
 		});
 		if (options?.streaming) root.addClass("is-streaming");
 		if (options?.welcome) root.addClass("is-welcome");
 
-		const row = root.createEl("div", { cls: "lecture-lens-chat-message-row" });
-
-		const avatar = row.createEl("div", {
-			cls: `lecture-lens-chat-avatar lecture-lens-chat-avatar-${role}`,
-		});
-		setIcon(avatar, role === "user" ? "user" : "glasses");
-
-		const bubble = row.createEl("div", { cls: "lecture-lens-chat-bubble" });
-
-		const meta = bubble.createEl("div", { cls: "lecture-lens-chat-message-meta" });
-		meta.createEl("span", {
-			cls: "lecture-lens-chat-role",
-			text: role === "user" ? this.plugin.tr("chat.roleUser") : this.plugin.tr("chat.roleAi"),
-		});
-
-		if (role === "assistant" && options?.copyContent !== undefined) {
-			const copyBtn = meta.createEl("button", {
-				cls: "lecture-lens-chat-icon-btn lecture-lens-chat-copy-btn",
-				attr: { "aria-label": this.plugin.tr("chat.copyMessage"), title: this.plugin.tr("chat.copyMessage") },
+		const header = root.createEl("div", { cls: "lecture-lens-chat-turn-header" });
+		if (role === "user") {
+			header.createEl("span", {
+				cls: "lecture-lens-chat-turn-label",
+				text: this.plugin.tr("chat.roleUser"),
 			});
-			setIcon(copyBtn, "copy");
-			copyBtn.addEventListener("click", () => void this.copyToClipboard(options.copyContent!));
+		} else if (options?.welcome) {
+			header.createEl("span", {
+				cls: "lecture-lens-chat-turn-label",
+				text: this.plugin.tr("chat.roleAi"),
+			});
 		}
 
-		const contentEl = bubble.createEl("div", { cls: "lecture-lens-chat-content markdown-rendered" });
+		const actions = header.createEl("div", { cls: "lecture-lens-chat-turn-actions" });
+		if (options?.messageContent) {
+			this.attachMessageActions(actions, options.messageContent, role, Boolean(options.welcome));
+		}
+
+		const contentEl = root.createEl("div", {
+			cls: "lecture-lens-chat-turn-body markdown-rendered",
+		});
 		return { root, contentEl };
+	}
+
+	private attachMessageActions(
+		actions: HTMLElement,
+		content: string,
+		role: "user" | "assistant",
+		isWelcome: boolean
+	): void {
+		const copyBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-action-btn lecture-lens-chat-copy-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.copyMessage"),
+				title: this.plugin.tr("chat.copyMessage"),
+			},
+		});
+		setIcon(copyBtn, "copy");
+		copyBtn.addEventListener("click", () => void this.copyToClipboard(content));
+
+		if (role !== "assistant" || isWelcome) return;
+
+		const insertBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-action-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.insertAtCursor"),
+				title: this.plugin.tr("chat.insertAtCursor"),
+			},
+		});
+		setIcon(insertBtn, "text-cursor-input");
+		insertBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "cursor"));
+
+		const appendBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-action-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.appendToNote"),
+				title: this.plugin.tr("chat.appendToNote"),
+			},
+		});
+		setIcon(appendBtn, "arrow-down-to-line");
+		appendBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "end"));
+
+		const replaceBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-action-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.replaceSelection"),
+				title: this.plugin.tr("chat.replaceSelection"),
+			},
+		});
+		setIcon(replaceBtn, "replace");
+		replaceBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "selection"));
+
+		const applyBtn = actions.createEl("button", {
+			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-action-btn lecture-lens-chat-apply-btn",
+			attr: {
+				"aria-label": this.plugin.tr("chat.applyToNote"),
+				title: this.plugin.tr("chat.applyToNote"),
+			},
+		});
+		setIcon(applyBtn, "file-pen-line");
+		applyBtn.addEventListener("click", () => this.applyMessageToNote(content));
+	}
+
+	private rememberMarkdownPathFromWorkspace(): void {
+		this.lastMarkdownPath = resolveTargetMarkdownPath(this.app, this.lastMarkdownPath);
+	}
+
+	private getTargetMarkdownPath(): string | null {
+		return resolveTargetMarkdownPath(this.app, this.lastMarkdownPath);
+	}
+
+	private insertMessageIntoNote(
+		content: string,
+		mode: "cursor" | "end" | "selection"
+	): void {
+		if (!insertIntoNote(this.app, content, mode, this.getTargetMarkdownPath())) {
+			if (mode === "selection") {
+				new Notice(this.plugin.tr("chat.noSelection"), 4000);
+				return;
+			}
+			new Notice(this.plugin.tr("chat.noActiveMarkdownNote"), 5000);
+			return;
+		}
+
+		const noticeKey =
+			mode === "cursor"
+				? "chat.insertedAtCursor"
+				: mode === "end"
+					? "chat.appendedToNote"
+					: "chat.replacedSelection";
+		new Notice(this.plugin.tr(noticeKey), 2500);
+	}
+
+	private applyMessageToNote(content: string): void {
+		const result = applyAssistantContentToNote(this.app, content, this.getTargetMarkdownPath());
+		if (!result) {
+			new Notice(this.plugin.tr("chat.noActiveMarkdownNote"), 5000);
+			return;
+		}
+
+		const noticeKey =
+			result === "patch"
+				? "chat.appliedPatches"
+				: result === "selection"
+					? "chat.replacedSelection"
+					: "chat.insertedAtCursor";
+		new Notice(this.plugin.tr(noticeKey), 2500);
 	}
 
 	private showTypingIndicator(contentEl: HTMLElement): void {
@@ -462,7 +1032,7 @@ export class ChatView extends ItemView {
 	): Promise<HTMLElement> {
 		const { contentEl } = this.createMessageShell(role, {
 			welcome: isWelcome,
-			copyContent: role === "assistant" ? content : undefined,
+			messageContent: content || undefined,
 		});
 
 		if (images && images.length > 0) {
@@ -476,7 +1046,7 @@ export class ChatView extends ItemView {
 		}
 
 		if (content) {
-			const textEl = contentEl.createEl("div", { cls: "lecture-lens-chat-text" });
+			const textEl = contentEl.createEl("div", { cls: "lecture-lens-chat-turn-text" });
 			const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
 			await renderChatMarkdown(this.app, this, textEl, content, sourcePath);
 		}
@@ -494,18 +1064,39 @@ export class ChatView extends ItemView {
 		}
 	}
 
+	private adjustChatInputHeight(): void {
+		const el = this.inputEl;
+		if (!el) return;
+
+		el.style.removeProperty("--ll-input-height");
+		const style = window.getComputedStyle(el);
+		const maxHeight = Number.parseFloat(style.maxHeight) || 140;
+		const minHeight = Number.parseFloat(style.minHeight) || 36;
+		const nextHeight = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+		el.style.setProperty("--ll-input-height", `${nextHeight}px`);
+		el.classList.toggle("lecture-lens-chat-input--scroll", el.scrollHeight > maxHeight);
+	}
+
+	private resetChatInputHeight(): void {
+		if (!this.inputEl) return;
+		this.inputEl.style.removeProperty("--ll-input-height");
+		this.inputEl.classList.remove("lecture-lens-chat-input--scroll");
+		this.adjustChatInputHeight();
+	}
+
 	private async handleSend(): Promise<void> {
 		const text = this.inputEl.value.trim();
 		const images = [...this.pendingImages];
 		if ((!text && images.length === 0) || this.isStreaming) return;
 
-		if (images.length > 0 && !this.canUseVision()) {
+		if (images.length > 0 && !this.canAttachImages()) {
 			this.visionBlockedNotice();
 			return;
 		}
 
 		const userText = text || this.plugin.tr("chat.defaultImagePrompt");
 		this.inputEl.value = "";
+		this.resetChatInputHeight();
 		this.pendingImages = [];
 		this.renderImageChips();
 
@@ -518,6 +1109,7 @@ export class ChatView extends ItemView {
 				mimeType: image.mimeType,
 			})),
 		});
+		await this.persistCurrentSession();
 		this.isStreaming = true;
 		this.sendBtn.disabled = true;
 		this.sendBtn.addClass("is-loading");
@@ -526,50 +1118,67 @@ export class ChatView extends ItemView {
 		this.showTypingIndicator(contentEl);
 
 		const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
+		const useVisionRelay = this.willUseVisionRelay(images);
 
 		try {
-			const messages = await this.buildMessages();
-			let fullResponse = "";
-			contentEl.removeClass("is-typing");
-			contentEl.empty();
-
-			for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
-				temperature: 0.7,
-				max_tokens: 2000,
-			})) {
-				fullResponse += chunk;
-				debounceRender(this.app, this, contentEl, fullResponse, sourcePath, this.streamRenderTimer, 180);
+			if (useVisionRelay && images.length > 0) {
+				contentEl.removeClass("is-typing");
+				contentEl.empty();
+				const relayStatusEl = contentEl.createEl("div", {
+					cls: "lecture-lens-chat-vision-relay-status",
+				});
+				relayStatusEl.setText(this.plugin.tr("chat.analyzingImages"));
 				this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+
+				const imageDescription = await this.plugin.runVisionRelay(
+					this.getCurrentProfile(),
+					this.getEffectiveModelName(),
+					userText,
+					images.map((image) => ({
+						base64: image.base64,
+						mimeType: image.mimeType,
+					})),
+					(_chunk, fullText) => {
+						relayStatusEl.setText(
+							`${this.plugin.tr("chat.analyzingImages")}\n\n${fullText}`
+						);
+						this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+					}
+				);
+
+				const lastUserTurn = [...this.history].reverse().find((turn) => turn.role === "user");
+				if (lastUserTurn) {
+					lastUserTurn.imageDescription = imageDescription;
+				}
+				await this.persistCurrentSession();
 			}
 
-			if (this.streamRenderTimer.id !== null) {
-				window.clearTimeout(this.streamRenderTimer.id);
-				this.streamRenderTimer.id = null;
-			}
-			await renderChatMarkdown(this.app, this, contentEl, fullResponse, sourcePath);
+			this.applySessionModel();
+			const messages = (await this.buildMessagesWithSnapshot()).messages;
+			const fullResponse = await this.streamAssistantResponse(
+				contentEl,
+				messages,
+				sourcePath
+			);
+
 			assistantMsg.removeClass("is-streaming");
 
-			const meta = assistantMsg.querySelector(".lecture-lens-chat-message-meta");
-			if (meta && fullResponse) {
-				const copyBtn = meta.createEl("button", {
-					cls: "lecture-lens-chat-icon-btn lecture-lens-chat-copy-btn",
-					attr: {
-						"aria-label": this.plugin.tr("chat.copyMessage"),
-						title: this.plugin.tr("chat.copyMessage"),
-					},
-				});
-				setIcon(copyBtn, "copy");
-				copyBtn.addEventListener("click", () => void this.copyToClipboard(fullResponse));
+			const actions = assistantMsg.querySelector(".lecture-lens-chat-turn-actions");
+			if (actions && fullResponse) {
+				this.attachMessageActions(actions as HTMLElement, fullResponse, "assistant", false);
 			}
 
 			this.history.push({ role: "assistant", content: fullResponse });
+			await this.persistCurrentSession();
 		} catch (error) {
+			this.clearStreamRenderTimer();
 			const msg = this.formatChatError(error);
 			contentEl.removeClass("is-typing");
 			contentEl.empty();
 			contentEl.setText(`${this.plugin.tr("chat.errorPrefix")}${msg}`);
 			assistantMsg.removeClass("is-streaming");
 		} finally {
+			this.clearStreamRenderTimer();
 			this.isStreaming = false;
 			this.sendBtn.disabled = false;
 			this.sendBtn.removeClass("is-loading");
@@ -577,95 +1186,166 @@ export class ChatView extends ItemView {
 	}
 
 	private getContextFiles(): TFile[] {
+		if (!this.sessionIncludeNotes) return [];
 		const activeFile = this.app.workspace.getActiveFile();
 		const current = this.includeCurrentNote && activeFile?.extension === "md" ? activeFile : null;
 		return this.plugin.noteContextService.dedupeFiles([current, ...this.attachedFiles]);
 	}
 
-	private async buildMessages(): Promise<ChatMessage[]> {
+	private async streamAssistantResponse(
+		contentEl: HTMLElement,
+		messages: ChatMessage[],
+		sourcePath: string
+	): Promise<string> {
+		let fullResponse = "";
+		contentEl.removeClass("is-typing");
+		contentEl.empty();
+
+		for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
+			temperature: 0.7,
+			max_tokens: DEFAULT_CHAT_MAX_TOKENS,
+		})) {
+			fullResponse += chunk;
+			debounceRender(
+				this.app,
+				this,
+				contentEl,
+				fullResponse,
+				sourcePath,
+				this.streamRenderTimer,
+				180
+			);
+			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+		}
+
+		this.clearStreamRenderTimer();
+		await renderChatMarkdown(this.app, this, contentEl, fullResponse, sourcePath);
+		return fullResponse;
+	}
+
+	private clearContextPreviewTimer(): void {
+		if (this.contextPreviewTimer !== null) {
+			window.clearTimeout(this.contextPreviewTimer);
+			this.contextPreviewTimer = null;
+		}
+	}
+
+	private scheduleContextPreview(): void {
+		this.clearContextPreviewTimer();
+		this.contextPreviewTimer = window.setTimeout(() => {
+			this.contextPreviewTimer = null;
+			void this.refreshContextPreview();
+		}, 350);
+	}
+
+	private getContextBuildUserText(): string {
+		return this.inputEl?.value.trim() ?? "";
+	}
+
+	private renderContextPanelState(snapshot: ChatContextSnapshot | null): void {
+		if (!this.contextPanelEl) return;
+		renderContextPanel(
+			this.contextPanelEl,
+			snapshot,
+			(key, params) => this.plugin.tr(key, params),
+			{
+				includeRag: this.sessionIncludeRag,
+				includeNotes: this.sessionIncludeNotes,
+				onIncludeRagChange: (value) => {
+					this.sessionIncludeRag = value;
+					void this.refreshContextPreview();
+				},
+				onIncludeNotesChange: (value) => {
+					this.sessionIncludeNotes = value;
+					this.renderContextChips();
+					void this.refreshContextPreview();
+				},
+			}
+		);
+	}
+
+	private async refreshContextPreview(): Promise<void> {
+		if (!this.contextPanelEl) return;
+		try {
+			const snapshot = await buildChatContextPreview({
+				settings: this.plugin.settings,
+				history: this.history,
+				contextFiles: this.getContextFiles(),
+				userText: this.getContextBuildUserText(),
+				visionEnabled: this.canUseVision(),
+				includeRag: this.sessionIncludeRag,
+				includeNotes: this.sessionIncludeNotes,
+				ragService: this.plugin.ragService,
+				noteContextService: this.plugin.noteContextService,
+				embeddingConfig: this.plugin.getEmbeddingRuntimeConfig(),
+				tr: (key, params) => this.plugin.tr(key, params),
+				formatEmbeddingError: (error) => this.plugin.formatEmbeddingError(error),
+				imageOmittedLabel: this.plugin.tr("chat.imageOmitted"),
+			});
+			this.renderContextPanelState(snapshot);
+		} catch (error) {
+			console.warn("Context preview failed:", error);
+		}
+	}
+
+	private async buildMessagesWithSnapshot(): Promise<{
+		messages: ChatMessage[];
+		snapshot: ChatContextSnapshot;
+	}> {
 		const lastUserMessage = [...this.history].reverse().find((turn) => turn.role === "user");
 		const userText = lastUserMessage?.content ?? "";
 
-		const systemParts = [
-			"You are Lecture Lens, an AI study assistant for course review.",
-			"Answer clearly using markdown, LaTeX math ($...$ or $$...$$), and mermaid when helpful.",
-			"Only use note content explicitly provided below; do not claim access to other files.",
-		];
+		const result = await buildChatContext({
+			settings: this.plugin.settings,
+			history: this.history,
+			contextFiles: this.getContextFiles(),
+			userText,
+			visionEnabled: this.canUseVision(),
+			includeRag: this.sessionIncludeRag,
+			includeNotes: this.sessionIncludeNotes,
+			ragService: this.plugin.ragService,
+			noteContextService: this.plugin.noteContextService,
+			embeddingConfig: this.plugin.getEmbeddingRuntimeConfig(),
+			tr: (key, params) => this.plugin.tr(key, params),
+			formatEmbeddingError: (error) => this.plugin.formatEmbeddingError(error),
+			imageOmittedLabel: this.plugin.tr("chat.imageOmitted"),
+		});
 
-		const contextFiles = this.getContextFiles();
-		if (contextFiles.length > 0) {
-			const noteContext = await this.plugin.noteContextService.buildContext(
-				contextFiles,
-				this.plugin.settings.maxNoteContextChars
-			);
-			systemParts.push(
-				"The user attached the following vault notes as context:\n\n" + noteContext
-			);
-		}
-
-		if (this.plugin.settings.ragEnabled && this.plugin.settings.courseFolderPath.trim()) {
-			try {
-				const chunks = await this.plugin.ragService.retrieve(
-					userText,
-					this.plugin.settings.embeddingModelName,
-					this.plugin.settings.ragTopK
-				);
-				const context = this.plugin.ragService.formatContext(chunks);
-				if (context) {
-					systemParts.push(
-						"Relevant excerpts retrieved from the indexed course folder:\n\n" + context
-					);
-				}
-			} catch (error) {
-				console.warn("RAG retrieval failed:", error);
-			}
-		}
-
-		const messages: ChatMessage[] = [
-			LLMService.createTextMessage("system", systemParts.join("\n\n")),
-		];
-
-		for (const turn of this.history.slice(-10)) {
-			if (turn.role === "user" && turn.images && turn.images.length > 0) {
-				messages.push(
-					LLMService.createMultimodalMessage(
-						turn.role,
-						turn.content,
-						turn.images.map((image) => ({
-							base64: image.base64,
-							mimeType: image.mimeType,
-							detail: "high" as const,
-						}))
-					)
-				);
-			} else {
-				messages.push(LLMService.createTextMessage(turn.role, turn.content));
-			}
-		}
-
-		return messages;
+		this.renderContextPanelState(result.snapshot);
+		return result;
 	}
 
 	private async rebuildIndex(): Promise<void> {
-		const folder = this.plugin.settings.courseFolderPath.trim();
-		if (!folder) {
+		if (!hasCourseFolderInput(this.plugin.settings.courseFolderPath)) {
 			new Notice(this.plugin.tr("notice.setCourseFolderFirst"), 5000);
+			return;
+		}
+		const validation = await this.plugin.getEmbeddingReadyMessage();
+		if (validation) {
+			new Notice(validation, 10000);
 			return;
 		}
 
 		const notice = new Notice(this.plugin.tr("notice.buildingIndex"), 0);
 		try {
 			const count = await this.plugin.ragService.buildIndex(
-				folder,
-				this.plugin.settings.embeddingModelName
+				this.plugin.settings.courseFolderPath,
+				this.plugin.getEmbeddingRuntimeConfig(),
+				(message: string) => {
+					notice.setMessage(`${this.plugin.tr("notice.buildingIndex")}\n${message}`);
+				}
 			);
 			notice.hide();
 			new Notice(this.plugin.tr("notice.indexRebuilt", { count }), 5000);
-			this.renderScopeHint();
+			void this.refreshScopeIndexStatus();
 		} catch (error) {
 			notice.hide();
-			const msg = error instanceof Error ? error.message : this.plugin.tr("notice.unknownError");
-			new Notice(this.plugin.tr("notice.indexRebuildFailed", { message: msg }), 8000);
+			new Notice(
+				this.plugin.tr("notice.indexRebuildFailed", {
+					message: this.plugin.formatEmbeddingError(error),
+				}),
+				10000
+			);
 		}
 	}
 }

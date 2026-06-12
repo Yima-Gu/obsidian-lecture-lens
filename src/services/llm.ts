@@ -465,22 +465,33 @@ content: text,
  * Create embeddings for one or more text inputs via OpenAI-compatible API.
  */
 public async createEmbeddings(
-input: string | string[],
-model: string
+	input: string | string[],
+	model: string,
+	options?: { baseUrl?: string; apiKey?: string }
 ): Promise<number[][]> {
-this.validateConfig();
+	const baseUrl = options?.baseUrl?.trim() || this.config.baseUrl;
+	const apiKey = options?.apiKey?.trim() || this.config.apiKey;
+	if (!apiKey || apiKey.trim() === "") {
+		throw new LLMServiceError("API key is required");
+	}
+	if (!baseUrl || baseUrl.trim() === "") {
+		throw new LLMServiceError("Base URL is required");
+	}
+	if (!model || model.trim() === "") {
+		throw new LLMServiceError("Embedding model is required");
+	}
 
-const url = `${this.config.baseUrl}/embeddings`;
-const requestParams: RequestUrlParam = {
-url,
-method: "POST",
-headers: {
-"Content-Type": "application/json",
-Authorization: `Bearer ${this.config.apiKey}`,
-},
-body: JSON.stringify({ model, input }),
-throw: false,
-};
+	const url = `${baseUrl.replace(/\/+$/, "")}/embeddings`;
+	const requestParams: RequestUrlParam = {
+		url,
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${apiKey}`,
+		},
+		body: JSON.stringify({ model, input }),
+		throw: false,
+	};
 
 const response = await requestUrl(requestParams);
 if (response.status < 200 || response.status >= 300) {

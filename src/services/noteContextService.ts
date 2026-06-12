@@ -1,4 +1,5 @@
 import { App, TFile } from "obsidian";
+import { NoteContextPart } from "../types/chatContext";
 
 const TRUNCATION_MARKER = "\n\n… [content truncated for context limit]";
 
@@ -14,6 +15,25 @@ export class NoteContextService {
 			result.push(file);
 		}
 		return result;
+	}
+
+	async buildContextParts(files: TFile[], maxCharsPerFile: number): Promise<NoteContextPart[]> {
+		const parts: NoteContextPart[] = [];
+		for (const file of files) {
+			const content = await this.app.vault.read(file);
+			const truncated = content.length > maxCharsPerFile;
+			const usedText = truncated
+				? content.slice(0, maxCharsPerFile) + TRUNCATION_MARKER
+				: content;
+			parts.push({
+				path: file.path,
+				basename: file.basename,
+				originalChars: content.length,
+				usedChars: usedText.length,
+				truncated,
+			});
+		}
+		return parts;
 	}
 
 	async buildContext(files: TFile[], maxCharsPerFile: number): Promise<string> {

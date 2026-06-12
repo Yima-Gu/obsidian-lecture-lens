@@ -1,7 +1,7 @@
 # Lecture Lens
 
-![GitHub release](https://img.shields.io/github/v/release/Yima-Gu/obsidian-lecture-lens)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
+[![Release](https://img.shields.io/github/v/release/Yima-Gu/obsidian-lecture-lens?style=for-the-badge&logo=github&logoColor=white&label=Release&color=483699)](https://github.com/Yima-Gu/obsidian-lecture-lens/releases/latest)
+[![License](https://img.shields.io/badge/License-MIT-483699?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
 > Turn lecture slides and whiteboard photos into structured Obsidian notes — powered by multimodal LLMs.
 >

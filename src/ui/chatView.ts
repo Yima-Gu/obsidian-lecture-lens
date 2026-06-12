@@ -34,7 +34,7 @@ import LectureLensPlugin from "../main";
 import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
 import { ChatMessage, LLMServiceError } from "../services/llm";
 import { VaultFileSuggestModal } from "./fileSuggestModal";
-import { debounceRender, renderChatMarkdown } from "../utils/markdownRender";
+import { renderChatMarkdown, updateStreamingPlainText, clearStreamingPlainText } from "../utils/markdownRender";
 import { MermaidEnhanceLabels } from "../utils/mermaidEnhance";
 import { getCourseFolderDisplayPath, hasCourseFolderInput } from "../utils/vaultPath";
 import {
@@ -56,10 +56,6 @@ interface ChatTurn {
 	content: string;
 	images?: Array<{ base64: string; mimeType: string }>;
 	imageDescription?: string;
-}
-
-interface RenderTimerRef {
-	id: number | null;
 }
 
 interface MessageShell {
@@ -89,7 +85,6 @@ export class ChatView extends ItemView {
 	private pendingImages: ChatImageAttachment[] = [];
 	private includeCurrentNote = true;
 	private isStreaming = false;
-	private streamRenderTimer: RenderTimerRef = { id: null };
 	private scopeStatusEl: HTMLElement | null = null;
 	private scopeStatusRequest = 0;
 	private contextPanelEl!: HTMLElement;
@@ -289,15 +284,7 @@ export class ChatView extends ItemView {
 		this.rememberMarkdownPathFromWorkspace();
 	}
 
-	private clearStreamRenderTimer(): void {
-		if (this.streamRenderTimer.id !== null) {
-			window.clearTimeout(this.streamRenderTimer.id);
-			this.streamRenderTimer.id = null;
-		}
-	}
-
 	async onClose(): Promise<void> {
-		this.clearStreamRenderTimer();
 		this.clearContextPreviewTimer();
 		await this.persistCurrentSession();
 		this.containerEl.empty();
@@ -393,7 +380,7 @@ export class ChatView extends ItemView {
 			text: this.plugin.tr("chat.sessionSelect"),
 		});
 		this.sessionSelectEl = sessionRow.createEl("select", {
-			cls: "dropdown lecture-lens-chat-select",
+			cls: "lecture-lens-chat-select",
 		});
 		this.sessionSelectEl.addEventListener("change", () => {
 			void this.switchToSession(this.sessionSelectEl.value);
@@ -1256,14 +1243,12 @@ export class ChatView extends ItemView {
 			this.history.push({ role: "assistant", content: fullResponse });
 			await this.persistCurrentSession();
 		} catch (error) {
-			this.clearStreamRenderTimer();
 			const msg = this.formatChatError(error);
 			contentEl.removeClass("is-typing");
 			contentEl.empty();
 			contentEl.setText(`${this.plugin.tr("chat.errorPrefix")}${msg}`);
 			assistantMsg.removeClass("is-streaming");
 		} finally {
-			this.clearStreamRenderTimer();
 			this.isStreaming = false;
 			this.sendBtn.disabled = false;
 			this.sendBtn.removeClass("is-loading");
@@ -1286,25 +1271,27 @@ export class ChatView extends ItemView {
 		contentEl.removeClass("is-typing");
 		contentEl.empty();
 
+		const streamRenderIntervalMs = 48;
+		let lastPlainUpdate = 0;
+
+		const paintPlain = (force = false): void => {
+			const now = Date.now();
+			if (!force && now - lastPlainUpdate < streamRenderIntervalMs) return;
+			lastPlainUpdate = now;
+			updateStreamingPlainText(contentEl, fullResponse);
+			this.scrollMessagesToBottom();
+		};
+
 		for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
 			temperature: 0.7,
 			max_tokens: DEFAULT_CHAT_MAX_TOKENS,
 		})) {
 			fullResponse += chunk;
-			debounceRender(
-				this.app,
-				this,
-				contentEl,
-				fullResponse,
-				sourcePath,
-				this.streamRenderTimer,
-				180,
-				this.getMermaidRenderOptions()
-			);
-			this.scrollMessagesToBottom();
+			paintPlain();
 		}
 
-		this.clearStreamRenderTimer();
+		paintPlain(true);
+		clearStreamingPlainText(contentEl);
 		await renderChatMarkdown(
 			this.app,
 			this,
@@ -1313,6 +1300,7 @@ export class ChatView extends ItemView {
 			sourcePath,
 			this.getMermaidRenderOptions()
 		);
+		this.scrollMessagesToBottom();
 		return fullResponse;
 	}
 

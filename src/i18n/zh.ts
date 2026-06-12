@@ -366,7 +366,7 @@ export const zh: Record<TranslationKey, string> = {
 	"chat.profileSelect": "大模型",
 	"chat.providerSelect": "供应商",
 	"chat.modelSelect": "模型",
-	"chat.sessionSelect": "对话",
+	"chat.sessionSelect": "会话",
 	"chat.newChat": "新对话",
 	"chat.deleteChat": "删除对话",
 	"chat.newSessionTitle": "新对话",

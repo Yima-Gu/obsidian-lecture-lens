@@ -286,10 +286,13 @@ if (data === "[DONE]") return;
 
 try {
 const parsed = JSON.parse(data) as {
-choices: Array<{ delta: { content?: string } }>;
+choices: Array<{ delta?: { content?: string | null; reasoning_content?: string | null } }>;
 };
-const content = parsed.choices[0]?.delta?.content;
-if (content) yield content;
+const delta = parsed.choices[0]?.delta;
+const content = delta?.content;
+if (typeof content === "string" && content.length > 0) {
+	yield content;
+}
 } catch {
 // Skip malformed SSE data lines
 }

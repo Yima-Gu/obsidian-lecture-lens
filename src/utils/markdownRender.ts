@@ -46,3 +46,14 @@ export function debounceRender(
 		void renderChatMarkdown(app, component, container, markdown, sourcePath, options);
 	}, delayMs);
 }
+
+/** Fast plain-text updates while SSE chunks arrive (markdown render comes at end). */
+export function updateStreamingPlainText(container: HTMLElement, text: string): void {
+	container.removeClass("markdown-rendered");
+	container.addClass("is-streaming-plain");
+	container.setText(text);
+}
+
+export function clearStreamingPlainText(container: HTMLElement): void {
+	container.removeClass("is-streaming-plain");
+}

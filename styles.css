@@ -1090,6 +1090,11 @@ If your plugin does not need CSS, delete this file.
 	cursor: text;
 }
 
+.lecture-lens-chat-turn-body.is-streaming-plain {
+	white-space: pre-wrap;
+	font-family: var(--font-text);
+}
+
 .lecture-lens-chat-turn-body.markdown-rendered *,
 .lecture-lens-chat-turn-text.markdown-rendered * {
 	user-select: text;
@@ -1763,10 +1768,31 @@ If your plugin does not need CSS, delete this file.
 	min-width: 0;
 	max-width: 100%;
 	font-size: 0.78rem;
-	padding: 5px 10px;
-	border-radius: var(--ll-radius-full);
-	border-color: var(--ll-border);
-	background: var(--background-primary);
+	padding: 5px 28px 5px 10px;
+	border-radius: var(--ll-radius-sm);
+	border: 1px solid var(--ll-border);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	appearance: none;
+	-webkit-appearance: none;
+	text-overflow: ellipsis;
+	cursor: pointer;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 8px center;
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		box-shadow var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-chat-select:hover {
+	border-color: var(--ll-border-strong);
+}
+
+.lecture-lens-chat-select:focus {
+	border-color: var(--ll-border-strong);
+	box-shadow: var(--ll-ring);
+	outline: none;
 }
 
 .lecture-lens-chat-toolbar-actions {

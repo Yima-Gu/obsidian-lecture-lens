@@ -1,7 +1,7 @@
 # Lecture Lens
 
 ![GitHub release](https://img.shields.io/github/v/release/Yima-Gu/obsidian-lecture-lens)
-![License](https://img.shields.io/github/license/Yima-Gu/obsidian-lecture-lens)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 > Turn lecture slides and whiteboard photos into structured Obsidian notes — powered by multimodal LLMs.
 >
@@ -31,12 +31,12 @@
 
 ### Supported providers (presets)
 
-| Provider | Base URL | Default model |
-|----------|----------|---------------|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o` |
-| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-flash` |
-| Kimi | `https://api.moonshot.cn/v1` | `moonshot-v1-8k-vision-preview` |
-| Gemini | Google OpenAI-compatible endpoint | `gemini-2.0-flash` |
+| Provider | Base URL                          | Default model                   |
+| -------- | --------------------------------- | ------------------------------- |
+| OpenAI   | `https://api.openai.com/v1`       | `gpt-4o`                        |
+| DeepSeek | `https://api.deepseek.com`        | `deepseek-v4-flash`             |
+| Kimi     | `https://api.moonshot.cn/v1`      | `moonshot-v1-8k-vision-preview` |
+| Gemini   | Google OpenAI-compatible endpoint | `gemini-2.0-flash`              |
 
 > **Vision chat**: use a VLM such as `gpt-4o`, Kimi `*-vision-*`, or `deepseek-vl2`. Text models like `deepseek-v4-flash` do not accept images.
 
@@ -50,13 +50,13 @@
 **Manual / local development**
 
 1. Clone into your vault:
-   ```bash
-   cd /path/to/vault/.obsidian/plugins
-   git clone git@github.com:Yima-Gu/obsidian-lecture-lens.git lecture-lens
-   cd lecture-lens
-   npm install
-   npm run build
-   ```
+    ```bash
+    cd /path/to/vault/.obsidian/plugins
+    git clone git@github.com:Yima-Gu/obsidian-lecture-lens.git lecture-lens
+    cd lecture-lens
+    npm install
+    npm run build
+    ```
 2. Enable the plugin in **Settings → Community plugins**
 3. Reload Obsidian (`Cmd+R`)
 
@@ -73,8 +73,8 @@
 - **Local-first** — notes stay in your vault; RAG index is stored under `.obsidian/plugins/lecture-lens/`
 - **Explicit file context** — chat only reads vault notes you attach via `@` or the current-note chip (never arbitrary disk paths)
 - **API key storage**
-  - **Desktop**: encrypted with OS keychain via Electron `safeStorage` when available
-  - **Mobile / fallback**: stored in plugin data (same risk as other local secrets — protect vault access)
+    - **Desktop**: encrypted with OS keychain via Electron `safeStorage` when available
+    - **Mobile / fallback**: stored in plugin data (same risk as other local secrets — protect vault access)
 - **Network** — API calls go only to the LLM endpoint you configure; no hidden telemetry
 
 ### Development

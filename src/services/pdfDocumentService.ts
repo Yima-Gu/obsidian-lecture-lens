@@ -18,7 +18,8 @@ const MAX_CHARS_PER_PAGE = 2000;
 export async function extractPdfPageTexts(
 	app: App,
 	file: TFile,
-	maxPages: number
+	maxPages: number,
+	onPageProgress?: (current: number, total: number) => void
 ): Promise<{ pages: PdfPageText[]; totalPages: number; truncated: boolean }> {
 	const data = await app.vault.readBinary(file);
 	const loadingTask = pdfjsLib.getDocument({ data });
@@ -39,6 +40,7 @@ export async function extractPdfPageTexts(
 			text = `${text.slice(0, MAX_CHARS_PER_PAGE)}…`;
 		}
 		pages.push({ pageNumber, text });
+		onPageProgress?.(pageNumber, limit);
 	}
 
 	await pdf.destroy();

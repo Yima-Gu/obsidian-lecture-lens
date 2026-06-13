@@ -38,6 +38,10 @@ export interface LectureLensSettings {
 	pdfNotesOutputFolder: string;
 	pdfNotesMaxPages: number;
 	pdfNotesSkipMerge: boolean;
+	pdfNotesSectionMaxTokens: number;
+	pdfNotesSectionConcurrency: number;
+	pdfNotesMergeMaxTokens: number;
+	pdfNotesStylePrompt: string;
 	embeddingMode: EmbeddingMode;
 	localEmbeddingModel: string;
 	hfMirrorUrl: string;
@@ -72,7 +76,11 @@ export const DEFAULT_SETTINGS: LectureLensSettings = {
 	courseFolderPath: "",
 	pdfNotesOutputFolder: "",
 	pdfNotesMaxPages: 120,
-	pdfNotesSkipMerge: false,
+	pdfNotesSkipMerge: true,
+	pdfNotesSectionMaxTokens: 8192,
+	pdfNotesSectionConcurrency: 2,
+	pdfNotesMergeMaxTokens: 16384,
+	pdfNotesStylePrompt: "",
 	embeddingMode: "local",
 	localEmbeddingModel: DEFAULT_LOCAL_EMBEDDING_MODEL,
 	hfMirrorUrl: DEFAULT_HF_MIRROR_URL,
@@ -185,6 +193,61 @@ export class LectureLensSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.pdfNotesSkipMerge)
 					.onChange(async (value) => {
 						this.plugin.settings.pdfNotesSkipMerge = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.pdfNotesSectionMaxTokens.name"))
+			.setDesc(tr("settings.pdfNotesSectionMaxTokens.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(2048, 16384, 512)
+					.setValue(this.plugin.settings.pdfNotesSectionMaxTokens)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.pdfNotesSectionMaxTokens = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.pdfNotesSectionConcurrency.name"))
+			.setDesc(tr("settings.pdfNotesSectionConcurrency.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 4, 1)
+					.setValue(this.plugin.settings.pdfNotesSectionConcurrency)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.pdfNotesSectionConcurrency = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.pdfNotesMergeMaxTokens.name"))
+			.setDesc(tr("settings.pdfNotesMergeMaxTokens.desc"))
+			.addSlider((slider) =>
+				slider
+					.setLimits(1024, 65536, 1024)
+					.setValue(this.plugin.settings.pdfNotesMergeMaxTokens)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.pdfNotesMergeMaxTokens = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(tr("settings.pdfNotesStylePrompt.name"))
+			.setDesc(tr("settings.pdfNotesStylePrompt.desc"))
+			.addTextArea((text) =>
+				text
+					.setPlaceholder(tr("settings.pdfNotesStylePrompt.placeholder"))
+					.setValue(this.plugin.settings.pdfNotesStylePrompt)
+					.onChange(async (value) => {
+						this.plugin.settings.pdfNotesStylePrompt = value;
 						await this.plugin.saveSettings();
 					})
 			);

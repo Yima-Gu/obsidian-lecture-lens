@@ -15,6 +15,15 @@ transformers.min.js
 ort-wasm-simd.wasm
 ort-wasm.wasm
 pdf.worker.min.mjs
+pdf.worker-*.min.mjs
+
+# Local pack output
+dist-pack/
+lecture-lens-*.zip
+
+# Local dev / test artifacts
+.test-prefetch-cache/
+chat-history.json
 
 # Exclude sourcemaps
 *.map

@@ -1,15 +1,31 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
+import { enhanceChatMermaid, MermaidEnhanceLabels } from "./mermaidEnhance";
+import { normalizeChatMathDelimiters } from "./normalizeChatMath";
+
+export interface ChatMarkdownRenderOptions {
+	mermaidLabels?: MermaidEnhanceLabels;
+}
+
+const mermaidCleanupByContainer = new WeakMap<HTMLElement, () => void>();
 
 export async function renderChatMarkdown(
 	app: App,
 	component: Component,
 	container: HTMLElement,
 	markdown: string,
-	sourcePath: string
+	sourcePath: string,
+	options?: ChatMarkdownRenderOptions
 ): Promise<void> {
+	mermaidCleanupByContainer.get(container)?.();
 	container.empty();
 	container.addClass("markdown-rendered");
-	await MarkdownRenderer.render(app, markdown, container, sourcePath, component);
+	const normalizedMarkdown = normalizeChatMathDelimiters(markdown);
+	await MarkdownRenderer.render(app, normalizedMarkdown, container, sourcePath, component);
+
+	if (options?.mermaidLabels) {
+		const cleanup = enhanceChatMermaid(app, component, container, options.mermaidLabels);
+		mermaidCleanupByContainer.set(container, cleanup);
+	}
 }
 
 export function debounceRender(
@@ -19,13 +35,25 @@ export function debounceRender(
 	markdown: string,
 	sourcePath: string,
 	timerRef: { id: number | null },
-	delayMs = 200
+	delayMs = 200,
+	options?: ChatMarkdownRenderOptions
 ): void {
 	if (timerRef.id !== null) {
 		window.clearTimeout(timerRef.id);
 	}
 	timerRef.id = window.setTimeout(() => {
 		timerRef.id = null;
-		void renderChatMarkdown(app, component, container, markdown, sourcePath);
+		void renderChatMarkdown(app, component, container, markdown, sourcePath, options);
 	}, delayMs);
+}
+
+/** Fast plain-text updates while SSE chunks arrive (markdown render comes at end). */
+export function updateStreamingPlainText(container: HTMLElement, text: string): void {
+	container.removeClass("markdown-rendered");
+	container.addClass("is-streaming-plain");
+	container.setText(text);
+}
+
+export function clearStreamingPlainText(container: HTMLElement): void {
+	container.removeClass("is-streaming-plain");
 }

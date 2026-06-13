@@ -14,32 +14,34 @@ export interface ContextPanelControls {
 	onIncludeNotesChange: (value: boolean) => void;
 }
 
-export function renderContextPanel(
+export interface ContextPanelElements {
+	panel: HTMLDetailsElement;
+	summaryText: HTMLElement;
+	bodyContent: HTMLElement;
+}
+
+type Translator = (key: TranslationKey, params?: Record<string, string | number>) => string;
+
+export function mountContextPanel(
 	container: HTMLElement,
-	snapshot: ChatContextSnapshot | null,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string,
-	controls: ContextPanelControls
-): void {
+	tr: Translator,
+	controls: ContextPanelControls,
+	onToggle?: (open: boolean) => void
+): ContextPanelElements {
 	container.empty();
 
 	const panel = container.createEl("details", {
 		cls: "lecture-lens-chat-context-panel",
 	});
-	panel.open = true;
 
 	const summary = panel.createEl("summary", { cls: "lecture-lens-chat-context-summary" });
 	const summaryIcon = summary.createEl("span", { cls: "lecture-lens-chat-context-summary-icon" });
 	setIcon(summaryIcon, "layers");
 
 	const summaryText = summary.createEl("span", { cls: "lecture-lens-chat-context-summary-text" });
-	if (!snapshot) {
-		summaryText.setText(tr("chat.contextPanel.empty"));
-	} else {
-		summaryText.setText(formatContextSummary(snapshot, tr));
-	}
+	summaryText.setText(tr("chat.contextPanel.empty"));
 
 	const body = panel.createEl("div", { cls: "lecture-lens-chat-context-body" });
-
 	const toggles = body.createEl("div", { cls: "lecture-lens-chat-context-toggles" });
 	renderToggle(
 		toggles,
@@ -54,36 +56,68 @@ export function renderContextPanel(
 		controls.onIncludeRagChange
 	);
 
+	const bodyContent = body.createEl("div", { cls: "lecture-lens-chat-context-body-content" });
+	bodyContent.createEl("p", {
+		cls: "lecture-lens-chat-context-hint",
+		text: tr("chat.contextPanel.hint"),
+	});
+
+	panel.addEventListener("toggle", () => {
+		onToggle?.(panel.open);
+	});
+
+	return { panel, summaryText, bodyContent };
+}
+
+export function updateContextPanelSummary(
+	summaryText: HTMLElement,
+	snapshot: ChatContextSnapshot | null,
+	tr: Translator
+): void {
 	if (!snapshot) {
-		body.createEl("p", {
+		summaryText.setText(tr("chat.contextPanel.empty"));
+		return;
+	}
+	summaryText.setText(formatContextSummary(snapshot, tr));
+}
+
+export function renderContextPanelBody(
+	bodyContent: HTMLElement,
+	snapshot: ChatContextSnapshot | null,
+	tr: Translator
+): void {
+	bodyContent.empty();
+
+	if (!snapshot) {
+		bodyContent.createEl("p", {
 			cls: "lecture-lens-chat-context-hint",
 			text: tr("chat.contextPanel.hint"),
 		});
 		return;
 	}
 
-	renderBudgetBar(body, snapshot, tr);
-	renderSegmentLegend(body, snapshot, tr);
+	renderBudgetBar(bodyContent, snapshot, tr);
+	renderSegmentLegend(bodyContent, snapshot, tr);
 
 	if (snapshot.historyParts.length > 0) {
-		renderHistorySection(body, snapshot, tr);
+		renderHistorySection(bodyContent, snapshot, tr);
 	}
 
 	if (snapshot.notes.length > 0) {
-		renderNotesSection(body, snapshot, tr);
+		renderNotesSection(bodyContent, snapshot, tr);
 	} else if (snapshot.notesEnabled) {
-		body.createEl("p", {
+		bodyContent.createEl("p", {
 			cls: "lecture-lens-chat-context-empty-line",
 			text: tr("chat.contextPanel.noNotes"),
 		});
 	}
 
-	renderRagSection(body, snapshot, tr);
+	renderRagSection(bodyContent, snapshot, tr);
 }
 
 function formatContextSummary(
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): string {
 	const prefix = snapshot.isPreview
 		? tr("chat.contextPanel.preview")
@@ -117,7 +151,7 @@ function renderToggle(
 function renderBudgetBar(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -156,7 +190,7 @@ function renderBudgetBar(
 function renderSegmentLegend(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): void {
 	const legend = parent.createEl("div", { cls: "lecture-lens-chat-context-legend" });
 	for (const segment of snapshot.segments) {
@@ -174,7 +208,7 @@ function renderSegmentLegend(
 function renderHistorySection(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -205,7 +239,7 @@ function renderHistorySection(
 function renderNotesSection(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -246,7 +280,7 @@ function renderNotesSection(
 function renderRagSection(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -321,7 +355,7 @@ function previewText(text: string, maxLen: number): string {
 
 function ragIssueLabel(
 	issue: NonNullable<ChatContextSnapshot["ragIssue"]>,
-	tr: (key: TranslationKey, params?: Record<string, string | number>) => string
+	tr: Translator
 ): string {
 	switch (issue) {
 		case "no_index":

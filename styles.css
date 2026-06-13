@@ -7,6 +7,25 @@ If your plugin does not need CSS, delete this file.
 
 */
 
+/* ── Lecture Lens design tokens (shared surfaces) ── */
+.lecture-lens-chat-view,
+.lecture-lens-modal .modal-content {
+	--ll-radius-sm: 8px;
+	--ll-radius-md: 12px;
+	--ll-radius-lg: 14px;
+	--ll-radius-full: 999px;
+	--ll-ease: cubic-bezier(0.4, 0, 0.2, 1);
+	--ll-duration: 180ms;
+	--ll-ring: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	--ll-surface: var(--background-secondary);
+	--ll-surface-hover: color-mix(in srgb, var(--interactive-accent) 5%, var(--background-secondary));
+	--ll-border: color-mix(in srgb, var(--background-modifier-border) 90%, transparent);
+	--ll-border-strong: color-mix(in srgb, var(--interactive-accent) 28%, var(--background-modifier-border));
+	--ll-shadow: 0 1px 2px color-mix(in srgb, #000 4%, transparent);
+	--ll-shadow-md: 0 4px 16px color-mix(in srgb, #000 6%, transparent);
+	--ll-shadow-lg: 0 12px 32px color-mix(in srgb, #000 8%, transparent);
+}
+
 .lecture-lens-input-error {
 	border-color: var(--text-error) !important;
 	box-shadow: 0 0 0 1px var(--text-error) inset;
@@ -72,6 +91,461 @@ If your plugin does not need CSS, delete this file.
 	100% {
 		background-position: 0% 0%;
 	}
+}
+
+/* PDF notes — Apple-style bottom-right progress HUD */
+.lecture-lens-pdf-hud {
+	position: fixed;
+	right: 16px;
+	bottom: 16px;
+	z-index: 100000;
+	width: min(340px, calc(100vw - 32px));
+	border-radius: 14px;
+	overflow: hidden;
+	pointer-events: auto;
+	opacity: 0;
+	transform: translateY(12px) scale(0.98);
+	transition:
+		opacity 0.38s cubic-bezier(0.25, 0.1, 0.25, 1),
+		transform 0.38s cubic-bezier(0.25, 0.1, 0.25, 1);
+	background: color-mix(in srgb, var(--background-primary) 78%, transparent);
+	backdrop-filter: blur(22px) saturate(180%);
+	-webkit-backdrop-filter: blur(22px) saturate(180%);
+	border: 0.5px solid color-mix(in srgb, var(--background-modifier-border) 65%, transparent);
+	box-shadow:
+		0 0 0 0.5px color-mix(in srgb, #ffffff 8%, transparent) inset,
+		0 12px 40px rgba(0, 0, 0, 0.14),
+		0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .lecture-lens-pdf-hud {
+	background: color-mix(in srgb, #ffffff 82%, transparent);
+	box-shadow:
+		0 0 0 0.5px rgba(255, 255, 255, 0.6) inset,
+		0 12px 40px rgba(0, 0, 0, 0.1),
+		0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.lecture-lens-pdf-hud.is-visible {
+	opacity: 1;
+	transform: translateY(0) scale(1);
+}
+
+.lecture-lens-pdf-hud.is-dismissing {
+	opacity: 0;
+	transform: translateY(8px) scale(0.98);
+	pointer-events: none;
+}
+
+.lecture-lens-pdf-hud.is-clickable {
+	cursor: pointer;
+}
+
+.lecture-lens-pdf-hud.is-clickable:hover {
+	box-shadow:
+		0 0 0 0.5px color-mix(in srgb, #ffffff 10%, transparent) inset,
+		0 16px 48px rgba(0, 0, 0, 0.18),
+		0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.lecture-lens-pdf-hud-body {
+	padding: 14px 16px 12px;
+}
+
+.lecture-lens-pdf-hud-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 11px;
+	margin-bottom: 11px;
+}
+
+.lecture-lens-pdf-hud-icon {
+	flex-shrink: 0;
+	width: 28px;
+	height: 28px;
+	margin-top: 1px;
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+	position: relative;
+}
+
+.lecture-lens-pdf-hud-icon::before {
+	content: "";
+	position: absolute;
+	inset: 7px 8px 7px 8px;
+	border-radius: 2px;
+	border: 1.5px solid var(--interactive-accent);
+	opacity: 0.85;
+}
+
+.lecture-lens-pdf-hud-icon::after {
+	content: "";
+	position: absolute;
+	left: 10px;
+	right: 10px;
+	top: 13px;
+	height: 1.5px;
+	background: var(--interactive-accent);
+	box-shadow: 0 4px 0 var(--interactive-accent);
+	opacity: 0.3;
+}
+
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-icon {
+	background: color-mix(in srgb, var(--color-green) 16%, transparent);
+}
+
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-icon::before,
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-icon::after {
+	display: none;
+}
+
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-icon {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334c759' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 16px;
+}
+
+.lecture-lens-pdf-hud[data-phase="error"] .lecture-lens-pdf-hud-icon::before {
+	border-color: var(--text-error);
+	border-radius: 50%;
+}
+
+.lecture-lens-pdf-hud-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.lecture-lens-pdf-hud-title {
+	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
+	color: var(--text-normal);
+	word-break: break-word;
+}
+
+.lecture-lens-pdf-hud-detail {
+	margin-top: 2px;
+	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+	font-size: 11px;
+	font-weight: 400;
+	line-height: 1.35;
+	color: var(--text-muted);
+	word-break: break-word;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.lecture-lens-pdf-hud-percent {
+	flex-shrink: 0;
+	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+	font-size: 12px;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+	padding-top: 1px;
+}
+
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-percent {
+	color: var(--color-green);
+}
+
+.lecture-lens-pdf-hud-track {
+	height: 3px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+	overflow: hidden;
+}
+
+.lecture-lens-pdf-hud-fill {
+	height: 100%;
+	width: 0%;
+	border-radius: var(--ll-radius-full, 999px);
+	background: linear-gradient(
+		90deg,
+		var(--interactive-accent),
+		color-mix(in srgb, var(--interactive-accent) 70%, #8b5cf6)
+	);
+	transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-fill {
+	width: 100% !important;
+	background: var(--color-green);
+}
+
+.lecture-lens-pdf-hud-hint {
+	margin-top: 9px;
+	font-size: 10px;
+	line-height: 1.35;
+	color: var(--text-faint);
+}
+
+.lecture-lens-pdf-hud-hint.is-hidden {
+	display: none;
+}
+
+.lecture-lens-pdf-status-text {
+	max-width: min(560px, 55vw);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-muted);
+	font-size: 12px;
+	font-weight: 400;
+}
+
+.lecture-lens-pdf-notes-options-modal,
+.lecture-lens-pdf-multi-select-modal {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* Widen the Obsidian modal shell — inner min-width alone does not expand it */
+.modal.lecture-lens-modal {
+	width: min(880px, 96vw);
+	max-width: 96vw;
+}
+
+/* Shared modal chrome */
+.lecture-lens-modal .modal-content {
+	width: 100%;
+	max-width: none;
+	box-sizing: border-box;
+	border-radius: var(--ll-radius-lg);
+	border: 1px solid var(--ll-border);
+	box-shadow: var(--ll-shadow-lg);
+	padding: 20px 22px 18px;
+}
+
+.lecture-lens-modal .modal-content h2 {
+	margin: 0 0 6px;
+	font-size: 1.05rem;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+}
+
+.lecture-lens-modal .modal-content > .setting-item-description:first-of-type {
+	margin-bottom: 12px;
+}
+
+.lecture-lens-modal .setting-item {
+	border-radius: var(--ll-radius-sm);
+	transition: background var(--ll-duration) var(--ll-ease);
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 8px 12px;
+}
+
+.lecture-lens-modal .setting-item-info {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+
+.lecture-lens-modal .setting-item-control {
+	flex: 1 1 280px;
+	min-width: 0;
+	max-width: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.lecture-lens-modal .setting-item-control input[type="text"],
+.lecture-lens-modal .setting-item-control textarea {
+	flex: 1 1 240px;
+	min-width: 0;
+	width: auto;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.lecture-lens-modal .setting-item-control textarea {
+	flex: 1 1 100%;
+	width: 100%;
+}
+
+.lecture-lens-pdf-notes-file-section {
+	margin: 14px 0 18px;
+	padding: 12px;
+	border-radius: var(--ll-radius-md);
+	border: 1px solid var(--ll-border);
+	background: var(--ll-surface);
+}
+
+.lecture-lens-pdf-notes-file-section h3 {
+	margin: 0 0 4px;
+	font-size: 0.88rem;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.lecture-lens-pdf-notes-file-header,
+.lecture-lens-pdf-notes-file-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+	gap: 10px 12px;
+	align-items: center;
+}
+
+.lecture-lens-pdf-notes-file-row:has(.lecture-lens-pdf-notes-remove) {
+	grid-template-columns: minmax(0, 1fr) minmax(200px, 280px) auto;
+}
+
+.lecture-lens-pdf-notes-file-header {
+	padding: 0 4px 6px;
+	font-size: 12px;
+	color: var(--text-muted);
+	font-weight: 600;
+}
+
+.lecture-lens-pdf-notes-file-list {
+	max-height: 240px;
+	overflow-y: auto;
+	border: 1px solid var(--ll-border);
+	border-radius: var(--ll-radius-sm);
+	padding: 4px;
+	background: var(--background-primary);
+}
+
+.lecture-lens-pdf-notes-file-row {
+	padding: 8px 6px;
+	border-bottom: 1px solid var(--ll-border);
+	border-radius: var(--ll-radius-sm);
+	transition: background var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-pdf-notes-file-row:hover {
+	background: var(--ll-surface-hover);
+}
+
+.lecture-lens-pdf-notes-file-row:last-child {
+	border-bottom: none;
+}
+
+.lecture-lens-pdf-notes-file-pdf span {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.lecture-lens-pdf-notes-file-name {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.lecture-lens-pdf-notes-name-input {
+	flex: 1;
+	min-width: 0;
+	border-radius: var(--ll-radius-sm);
+	padding: 5px 8px;
+	border: 1px solid var(--ll-border);
+	background: var(--background-primary);
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		box-shadow var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-pdf-notes-name-input:focus {
+	border-color: var(--ll-border-strong);
+	box-shadow: var(--ll-ring);
+	outline: none;
+}
+
+.lecture-lens-pdf-notes-name-suffix {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.lecture-lens-pdf-notes-prompt-setting .setting-item-control {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.lecture-lens-pdf-notes-prompt-setting .setting-item-control button {
+	align-self: flex-end;
+}
+
+.lecture-lens-pdf-notes-remove {
+	font-size: 18px;
+	line-height: 1;
+	padding: 4px 8px;
+}
+
+.lecture-lens-pdf-multi-select-list {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid var(--ll-border);
+	border-radius: var(--ll-radius-md);
+	padding: 6px;
+	margin-bottom: 10px;
+	background: var(--ll-surface);
+}
+
+.lecture-lens-pdf-multi-select-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 8px;
+	border-radius: var(--ll-radius-sm);
+	transition: background var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-pdf-multi-select-row:hover {
+	background: var(--ll-surface-hover);
+}
+
+.lecture-lens-pdf-multi-select-row input[type="checkbox"] {
+	accent-color: var(--interactive-accent);
+	width: 15px;
+	height: 15px;
+	cursor: pointer;
+}
+
+.lecture-lens-pdf-multi-select-path {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.lecture-lens-pdf-multi-select-actions {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 14px;
+}
+
+.lecture-lens-pdf-multi-select-actions button {
+	border-radius: var(--ll-radius-full);
+	padding: 5px 12px;
+	font-size: 0.78rem;
+	border: 1px solid var(--ll-border);
+	background: var(--background-primary);
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		background var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-pdf-multi-select-actions button:hover {
+	border-color: var(--ll-border-strong);
+	background: var(--ll-surface-hover);
+}
+
+.lecture-lens-pdf-multi-select-empty {
+	margin: 8px 4px;
+	color: var(--text-muted);
+	font-size: 13px;
 }
 
 /* Ask Image Modal Styles */
@@ -144,15 +618,13 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-view {
 	--lecture-lens-chat-message-font-size: 14px;
-	--ll-chat-gutter: 10px;
+	--ll-chat-gutter: 12px;
 	--ll-context-system: color-mix(in srgb, var(--text-muted) 70%, var(--background-modifier-border));
 	--ll-context-notes: color-mix(in srgb, var(--color-green) 55%, var(--interactive-accent));
 	--ll-context-rag: color-mix(in srgb, var(--interactive-accent) 75%, #8b5cf6);
 	--ll-context-history: color-mix(in srgb, var(--color-blue) 55%, var(--interactive-accent));
-	--ll-accent-soft: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
-	--ll-accent-border: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
-	--ll-shadow: 0 1px 2px color-mix(in srgb, var(--background-modifier-box-shadow) 60%, transparent);
-	--ll-shadow-lg: 0 8px 24px color-mix(in srgb, var(--background-modifier-box-shadow) 45%, transparent);
+	--ll-accent-soft: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+	--ll-accent-border: color-mix(in srgb, var(--interactive-accent) 32%, var(--background-modifier-border));
 
 	display: flex;
 	flex-direction: column;
@@ -161,7 +633,12 @@ If your plugin does not need CSS, delete this file.
 	padding: 0;
 	box-sizing: border-box;
 	overflow: hidden;
-	background: var(--background-primary);
+	background:
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--interactive-accent) 2.5%, var(--background-primary)) 0%,
+			var(--background-primary) 120px
+		);
 }
 
 .lecture-lens-chat-body {
@@ -176,11 +653,13 @@ If your plugin does not need CSS, delete this file.
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
+	gap: 10px;
 	flex-shrink: 0;
-	padding: 8px var(--ll-chat-gutter) 6px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	background: var(--background-primary);
+	padding: 10px var(--ll-chat-gutter) 8px;
+	border-bottom: 1px solid var(--ll-border);
+	background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
 }
 
 .lecture-lens-chat-brand {
@@ -194,12 +673,17 @@ If your plugin does not need CSS, delete this file.
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 28px;
-	border-radius: 8px;
-	background: var(--ll-accent-soft);
+	width: 30px;
+	height: 30px;
+	border-radius: var(--ll-radius-md);
+	background: linear-gradient(
+		135deg,
+		color-mix(in srgb, var(--interactive-accent) 18%, transparent),
+		color-mix(in srgb, var(--interactive-accent) 8%, transparent)
+	);
 	color: var(--interactive-accent);
 	box-shadow: var(--ll-shadow);
+	border: 1px solid var(--ll-accent-border);
 }
 
 .lecture-lens-chat-brand-icon svg {
@@ -213,9 +697,10 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-title {
 	margin: 0;
-	font-size: 0.95rem;
-	font-weight: 700;
-	line-height: 1.2;
+	font-size: 0.92rem;
+	font-weight: 650;
+	line-height: 1.25;
+	letter-spacing: -0.01em;
 }
 
 .lecture-lens-chat-subtitle {
@@ -520,14 +1005,14 @@ If your plugin does not need CSS, delete this file.
 	flex: 1 1 0;
 	overflow-y: auto;
 	overflow-x: hidden;
-	padding: 4px var(--ll-chat-gutter) 10px;
+	padding: 8px var(--ll-chat-gutter) 12px;
 	min-height: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
-	scroll-behavior: smooth;
+	gap: 16px;
 	position: relative;
 	z-index: 1;
+	scroll-behavior: smooth;
 }
 
 .lecture-lens-chat-messages::-webkit-scrollbar {
@@ -587,10 +1072,11 @@ If your plugin does not need CSS, delete this file.
 }
 
 .lecture-lens-chat-turn-user {
-	padding: 8px 10px;
-	border-radius: 10px;
-	background: color-mix(in srgb, var(--interactive-accent) 7%, var(--background-secondary));
-	border: 1px solid color-mix(in srgb, var(--interactive-accent) 18%, var(--background-modifier-border));
+	padding: 10px 12px;
+	border-radius: var(--ll-radius-md);
+	background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
+	border: 1px solid var(--ll-border-strong);
+	box-shadow: var(--ll-shadow);
 }
 
 .lecture-lens-chat-turn-user .lecture-lens-chat-turn-header {
@@ -599,22 +1085,35 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-turn-user .lecture-lens-chat-turn-label {
 	color: var(--text-muted);
+	font-size: 0.68rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 }
 
 .lecture-lens-chat-turn-assistant {
-	padding: 2px 0 4px;
+	padding: 4px 0 4px 10px;
+	border-left: 2px solid color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+	margin-left: 2px;
 }
 
 .lecture-lens-chat-turn-assistant .lecture-lens-chat-turn-header {
 	min-height: 18px;
-	margin-bottom: 2px;
+	margin-bottom: 4px;
+}
+
+.lecture-lens-chat-turn-assistant .lecture-lens-chat-turn-label {
+	font-size: 0.68rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-faint);
 }
 
 .lecture-lens-chat-turn.is-welcome {
-	padding: 10px 12px;
-	border-radius: 10px;
-	border: 1px dashed var(--background-modifier-border);
-	background: color-mix(in srgb, var(--interactive-accent) 3%, var(--background-primary));
+	padding: 12px 14px;
+	border-radius: var(--ll-radius-md);
+	border: 1px solid var(--ll-border);
+	background: var(--ll-surface);
+	box-shadow: var(--ll-shadow);
 }
 
 .lecture-lens-chat-turn.is-streaming .lecture-lens-chat-turn-body::after {
@@ -643,6 +1142,11 @@ If your plugin does not need CSS, delete this file.
 	user-select: text;
 	-webkit-user-select: text;
 	cursor: text;
+}
+
+.lecture-lens-chat-turn-body.is-streaming-plain {
+	white-space: pre-wrap;
+	font-family: var(--font-text);
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered *,
@@ -767,10 +1271,18 @@ If your plugin does not need CSS, delete this file.
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered .math-block,
-.lecture-lens-chat-turn-text.markdown-rendered .math-block {
+.lecture-lens-chat-turn-text.markdown-rendered .math-block,
+.lecture-lens-chat-turn-body.markdown-rendered mjx-container,
+.lecture-lens-chat-turn-text.markdown-rendered mjx-container {
 	overflow-x: auto;
 	margin: 0.55em 0;
 	padding: 0.35em 0;
+	word-break: normal;
+}
+
+.lecture-lens-chat-turn-body.markdown-rendered .math-inline,
+.lecture-lens-chat-turn-text.markdown-rendered .math-inline {
+	word-break: normal;
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered hr,
@@ -778,6 +1290,130 @@ If your plugin does not need CSS, delete this file.
 	border: none;
 	border-top: 1px solid var(--background-modifier-border);
 	margin: 0.85em 0;
+}
+
+.lecture-lens-mermaid-shell {
+	margin: 0.65em 0;
+	max-width: 100%;
+}
+
+.lecture-lens-mermaid-scroll {
+	overflow-x: auto;
+	overflow-y: hidden;
+	max-width: 100%;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	padding: 10px 12px;
+	cursor: zoom-in;
+	-webkit-overflow-scrolling: touch;
+}
+
+.lecture-lens-mermaid-scroll:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.lecture-lens-mermaid-scroll .mermaid,
+.lecture-lens-mermaid-scroll pre.mermaid {
+	display: inline-block;
+	min-width: min-content;
+	margin: 0;
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+.lecture-lens-mermaid-scroll svg {
+	display: block;
+	max-width: none;
+	height: auto;
+}
+
+.lecture-lens-mermaid-hint {
+	margin-top: 4px;
+	font-size: 0.72rem;
+	color: var(--text-faint);
+}
+
+.lecture-lens-mermaid-zoom-modal {
+	z-index: 100;
+}
+
+.lecture-lens-mermaid-zoom-modal .modal-content {
+	width: min(96vw, 1180px);
+	max-width: 96vw;
+	padding: 16px 18px 18px;
+}
+
+.lecture-lens-mermaid-zoom-body {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-height: min(88vh, 900px);
+}
+
+.lecture-lens-mermaid-zoom-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.lecture-lens-mermaid-zoom-title {
+	font-size: 0.95rem;
+	font-weight: 650;
+	color: var(--text-normal);
+}
+
+.lecture-lens-mermaid-zoom-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.lecture-lens-mermaid-zoom-btn {
+	width: 32px;
+	height: 32px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+}
+
+.lecture-lens-mermaid-zoom-help {
+	font-size: 0.75rem;
+	color: var(--text-faint);
+}
+
+.lecture-lens-mermaid-zoom-viewport {
+	flex: 1 1 auto;
+	min-height: 240px;
+	max-height: min(72vh, 760px);
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	background: var(--background-primary);
+	padding: 16px;
+}
+
+.lecture-lens-mermaid-zoom-content {
+	display: inline-block;
+	transform-origin: top left;
+}
+
+.lecture-lens-mermaid-zoom-content .mermaid,
+.lecture-lens-mermaid-zoom-content pre.mermaid {
+	margin: 0;
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+.lecture-lens-mermaid-zoom-content svg {
+	display: block;
+	max-width: none;
+	height: auto;
 }
 
 .lecture-lens-chat-typing {
@@ -826,17 +1462,27 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-composer {
 	flex-shrink: 0;
-	padding: 4px var(--ll-chat-gutter) 8px;
-	background: var(--background-primary);
-	border-top: 1px solid var(--background-modifier-border);
+	padding: 6px var(--ll-chat-gutter) 10px;
+	background: color-mix(in srgb, var(--background-primary) 94%, transparent);
+	border-top: 1px solid var(--ll-border);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
 }
 
 .lecture-lens-chat-composer-card {
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 12px;
-	background: var(--background-secondary);
-	box-shadow: var(--ll-shadow);
-	padding: 6px 8px 8px;
+	border: 1px solid var(--ll-border);
+	border-radius: var(--ll-radius-lg);
+	background: var(--ll-surface);
+	box-shadow: var(--ll-shadow-md);
+	padding: 8px 10px 10px;
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		box-shadow var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-chat-composer-card:focus-within {
+	border-color: var(--ll-border-strong);
+	box-shadow: var(--ll-shadow-md), var(--ll-ring);
 }
 
 .lecture-lens-chat-input-row {
@@ -864,16 +1510,22 @@ If your plugin does not need CSS, delete this file.
 	gap: 5px;
 	max-width: 100%;
 	padding: 4px 10px 4px 8px;
-	border-radius: 999px;
+	border-radius: var(--ll-radius-full);
 	font-size: 0.74rem;
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	border: 1px solid var(--ll-border);
+	background: var(--background-primary);
 	color: var(--text-muted);
 	cursor: pointer;
 	transition:
-		border-color 0.15s ease,
-		background 0.15s ease,
-		color 0.15s ease;
+		border-color var(--ll-duration) var(--ll-ease),
+		background var(--ll-duration) var(--ll-ease),
+		color var(--ll-duration) var(--ll-ease),
+		transform 0.1s var(--ll-ease);
+}
+
+.lecture-lens-chat-chip:hover:not(.is-attached):not(.is-muted) {
+	transform: translateY(-1px);
+	border-color: var(--ll-border-strong);
 }
 
 .lecture-lens-chat-chip-icon svg {
@@ -976,21 +1628,25 @@ If your plugin does not need CSS, delete this file.
 	resize: none;
 	overflow-y: hidden;
 	height: var(--ll-input-height, auto);
-	border-radius: 8px;
-	padding: 8px 10px;
+	border-radius: var(--ll-radius-sm);
+	padding: 9px 11px;
 	border: 1px solid transparent;
-	background: var(--background-primary);
-	min-height: 36px;
+	background: transparent;
+	min-height: 38px;
 	max-height: 140px;
-	font-size: 0.88rem;
-	line-height: 1.45;
+	font-size: 0.9rem;
+	line-height: 1.5;
 	flex: 1;
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		background var(--ll-duration) var(--ll-ease);
 }
 
 .lecture-lens-chat-input:focus {
-	border-color: var(--ll-accent-border);
+	border-color: transparent;
 	outline: none;
-	box-shadow: 0 0 0 2px var(--ll-accent-soft);
+	box-shadow: none;
+	background: color-mix(in srgb, var(--background-primary) 60%, transparent);
 }
 
 .lecture-lens-chat-input--scroll {
@@ -1066,19 +1722,19 @@ If your plugin does not need CSS, delete this file.
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 30px;
-	height: 30px;
-	border-radius: 8px;
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	width: 32px;
+	height: 32px;
+	border-radius: var(--ll-radius-sm);
+	border: 1px solid var(--ll-border);
+	background: var(--background-primary);
 	color: var(--text-muted);
 	cursor: pointer;
 	padding: 0;
 	transition:
-		color 0.15s ease,
-		border-color 0.15s ease,
-		background 0.15s ease,
-		transform 0.1s ease;
+		color var(--ll-duration) var(--ll-ease),
+		border-color var(--ll-duration) var(--ll-ease),
+		background var(--ll-duration) var(--ll-ease),
+		transform 0.1s var(--ll-ease);
 }
 
 .lecture-lens-chat-icon-btn svg {
@@ -1103,26 +1759,28 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-send-btn {
 	flex-shrink: 0;
-	width: 36px;
-	height: 36px;
-	border-radius: 10px;
+	width: 38px;
+	height: 38px;
+	border-radius: var(--ll-radius-md);
 	padding: 0;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: var(--ll-shadow);
+	box-shadow: var(--ll-shadow-md);
 	transition:
-		transform 0.1s ease,
-		opacity 0.15s ease;
+		transform 0.12s var(--ll-ease),
+		opacity var(--ll-duration) var(--ll-ease),
+		box-shadow var(--ll-duration) var(--ll-ease);
 }
 
 .lecture-lens-chat-send-btn svg {
-	width: 16px;
-	height: 16px;
+	width: 17px;
+	height: 17px;
 }
 
 .lecture-lens-chat-send-btn:hover:not(:disabled) {
-	transform: translateY(-1px);
+	transform: translateY(-1px) scale(1.02);
+	box-shadow: var(--ll-shadow-lg);
 }
 
 .lecture-lens-chat-send-btn:disabled,
@@ -1134,9 +1792,9 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-chat-toolbar {
 	display: flex;
 	flex-shrink: 0;
-	padding: 4px var(--ll-chat-gutter);
-	border-bottom: 1px solid var(--background-modifier-border);
-	background: color-mix(in srgb, var(--background-secondary) 40%, var(--background-primary));
+	padding: 6px var(--ll-chat-gutter);
+	border-bottom: 1px solid var(--ll-border);
+	background: color-mix(in srgb, var(--background-secondary) 50%, var(--background-primary));
 }
 
 .lecture-lens-chat-toolbar-row {
@@ -1164,8 +1822,31 @@ If your plugin does not need CSS, delete this file.
 	min-width: 0;
 	max-width: 100%;
 	font-size: 0.78rem;
-	padding: 4px 8px;
-	border-radius: 8px;
+	padding: 5px 28px 5px 10px;
+	border-radius: var(--ll-radius-sm);
+	border: 1px solid var(--ll-border);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	appearance: none;
+	-webkit-appearance: none;
+	text-overflow: ellipsis;
+	cursor: pointer;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 8px center;
+	transition:
+		border-color var(--ll-duration) var(--ll-ease),
+		box-shadow var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-chat-select:hover {
+	border-color: var(--ll-border-strong);
+}
+
+.lecture-lens-chat-select:focus {
+	border-color: var(--ll-border-strong);
+	box-shadow: var(--ll-ring);
+	outline: none;
 }
 
 .lecture-lens-chat-toolbar-actions {
@@ -1233,16 +1914,22 @@ If your plugin does not need CSS, delete this file.
 /* Chat context panel */
 .lecture-lens-chat-context {
 	flex-shrink: 0;
-	padding: 0 var(--ll-chat-gutter) 6px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	background: color-mix(in srgb, var(--background-secondary) 35%, var(--background-primary));
+	padding: 0 var(--ll-chat-gutter) 8px;
+	border-bottom: 1px solid var(--ll-border);
+	background: transparent;
 }
 
 .lecture-lens-chat-context-panel {
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 10px;
-	background: var(--background-secondary);
+	border: 1px solid var(--ll-border);
+	border-radius: var(--ll-radius-md);
+	background: var(--ll-surface);
 	overflow: hidden;
+	transition: border-color var(--ll-duration) var(--ll-ease);
+}
+
+.lecture-lens-chat-context-panel[open] {
+	border-color: var(--ll-border-strong);
+	box-shadow: var(--ll-shadow);
 }
 
 .lecture-lens-chat-context-summary {
@@ -1311,9 +1998,9 @@ If your plugin does not need CSS, delete this file.
 }
 
 .lecture-lens-chat-context-budget-bar {
-	height: 8px;
-	border-radius: 999px;
-	background: var(--background-modifier-border);
+	height: 6px;
+	border-radius: var(--ll-radius-full);
+	background: color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
 	overflow: hidden;
 }
 

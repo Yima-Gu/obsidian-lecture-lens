@@ -12,6 +12,8 @@ export interface StoredChatTurn {
 export interface ChatSession {
 	id: string;
 	title: string;
+	/** When true, title is not overwritten from the first user message. */
+	titleManuallySet?: boolean;
 	profileId: string;
 	/** Per-session model override (does not change profile settings). */
 	modelName?: string;
@@ -134,6 +136,17 @@ export class ChatHistoryService {
 		}
 		store.activeSessionId = session.id;
 		await this.persistStore(store);
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<ChatSession | null> {
+		const session = await this.getSession(sessionId);
+		if (!session) return null;
+		const trimmed = title.trim();
+		if (!trimmed) return null;
+		session.title = trimmed;
+		session.titleManuallySet = true;
+		await this.saveSession(session);
+		return session;
 	}
 
 	async deleteSession(sessionId: string): Promise<ChatSession | null> {

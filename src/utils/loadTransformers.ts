@@ -10,7 +10,7 @@ const TRANSFORMERS_CDN =
  * Patch only specific fields — never replace the whole process object.
  */
 const OBSIDIAN_PROCESS_SHIM =
-	'(()=>{const p=globalThis.process;if(!p)return;const r=p.release;if(r){try{Object.defineProperty(r,"name",{value:"obsidian-renderer",configurable:true,writable:true});}catch(e){r.name="obsidian-renderer";}}const v=p.versions;if(v){try{Object.defineProperty(v,"node",{value:undefined,configurable:true,writable:true});}catch(e){delete v.node;}}})();\n';
+	'(()=>{const p=window.process;if(!p)return;const r=p.release;if(r){try{Object.defineProperty(r,"name",{value:"obsidian-renderer",configurable:true,writable:true});}catch(e){r.name="obsidian-renderer";}}const v=p.versions;if(v){try{Object.defineProperty(v,"node",{value:undefined,configurable:true,writable:true});}catch(e){delete v.node;}}})();\n';
 
 export interface TransformersModule {
 	env: {
@@ -48,16 +48,22 @@ let processPatchApplied = false;
 let originalReleaseName: string | undefined;
 let originalNodeVersion: string | undefined;
 
+type ObsidianProcess = {
+	release?: { name?: string };
+	versions?: { node?: string };
+};
+
+function getObsidianProcess(): ObsidianProcess | undefined {
+	return (window as Window & { process?: ObsidianProcess }).process;
+}
+
 /** Keep WASM on the browser path for the entire plugin session. */
 export function applyObsidianProcessPatch(): void {
 	if (processPatchApplied) {
 		return;
 	}
 
-	const proc = globalThis.process as {
-		release?: { name?: string };
-		versions?: { node?: string };
-	} | undefined;
+	const proc = getObsidianProcess();
 
 	if (!proc) {
 		return;
@@ -98,10 +104,7 @@ export function restoreObsidianProcessPatch(): void {
 		return;
 	}
 
-	const proc = globalThis.process as {
-		release?: { name?: string };
-		versions?: { node?: string };
-	} | undefined;
+	const proc = getObsidianProcess();
 
 	if (proc?.release && originalReleaseName !== undefined) {
 		try {
@@ -183,6 +186,8 @@ async function importTransformersFromBlob(code: string): Promise<TransformersMod
 	const url = URL.createObjectURL(blob);
 
 	try {
+		// Blob URLs only reference plugin-local or CDN-fetched transformers code.
+		// eslint-disable-next-line no-unsanitized/method -- createObjectURL output is never user-controlled.
 		const mod = (await import(/* webpackIgnore: true */ url)) as TransformersModule;
 		if (!mod.pipeline || !mod.env) {
 			throw new Error("transformers.min.js loaded but pipeline/env exports are missing.");

@@ -15,14 +15,6 @@
 		"test:embedding-prefetch": "node scripts/test-prefetch-download.mjs",
 		"test:embedding": "node scripts/test-embedding.mjs"
 	},
-	"lint-staged": {
-		"*.{ts,tsx,js,mjs}": [
-			"eslint --fix"
-		],
-		"*.{json,md}": [
-			"prettier --write"
-		]
-	},
 	"keywords": [
 		"obsidian",
 		"obsidian-plugin",
@@ -38,11 +30,10 @@
 		"@eslint/js": "9.30.1",
 		"@types/node": "^16.11.6",
 		"esbuild": "0.25.5",
-		"eslint-plugin-obsidianmd": "0.1.9",
+		"eslint-plugin-obsidianmd": "^0.3.0",
 		"globals": "14.0.0",
 		"husky": "^9.1.7",
 		"jiti": "2.6.1",
-		"lint-staged": "^16.2.7",
 		"prettier": "^3.7.4",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",

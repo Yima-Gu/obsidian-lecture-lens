@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case */
 import { Setting } from "obsidian";
 import {
 	applyProviderPresetToProfile,
@@ -172,7 +171,7 @@ function renderProfileDetails(
 		.addText((text) => {
 			text.inputEl.type = "password";
 			text
-				.setPlaceholder("sk-...")
+				.setPlaceholder(tr("settings.common.placeholderApiKey"))
 				.setValue(profile.apiKey)
 				.onChange(async (value) => {
 					profile.apiKey = value.trim();
@@ -186,7 +185,7 @@ function renderProfileDetails(
 		.setName(tr("settings.baseUrl.name"))
 		.addText((text) =>
 			text
-				.setPlaceholder("https://api.openai.com/v1")
+				.setPlaceholder(tr("settings.common.placeholderBaseUrl"))
 				.setValue(profile.baseUrl)
 				.onChange(async (value) => {
 					const trimmed = value.trim();

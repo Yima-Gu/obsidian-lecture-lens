@@ -254,9 +254,9 @@ export class PdfNotesOptionsModal extends Modal {
 				return null;
 			}
 
-			const folder =
+			const resolvedFolder =
 				this.outputFolder.trim() || entry.pdfFile.parent?.path || "";
-			const key = `${folder}/${outputBaseName.toLowerCase()}`;
+			const key = `${resolvedFolder}/${outputBaseName.toLowerCase()}`;
 			if (seenNames.has(key)) {
 				new Notice(
 					this.tr("notice.pdfNotesDuplicateOutputName", { name: outputBaseName }),
@@ -269,7 +269,7 @@ export class PdfNotesOptionsModal extends Modal {
 			items.push({
 				pdfFile: entry.pdfFile,
 				runOptions: {
-					outputFolder: this.outputFolder,
+					outputFolder: resolvedFolder,
 					sectionSystemPrompt: trimmedPrompt || undefined,
 					outputBaseName,
 				},

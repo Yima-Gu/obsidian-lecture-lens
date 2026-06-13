@@ -264,7 +264,7 @@ async function resolveOutputPath(
 	const baseName =
 		runOptions?.outputBaseName?.trim() ||
 		outlineTitle.replace(/[\\/:*?"<>|]/g, "-").trim() ||
-		pdfFile.basename.replace(/\.pdf$/i, "");
+		pdfFile.basename;
 	let candidate = normalizePath(`${folder}/${baseName}.md`);
 	let suffix = 1;
 	while (host.app.vault.getAbstractFileByPath(candidate)) {

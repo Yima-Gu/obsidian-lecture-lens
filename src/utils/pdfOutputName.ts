@@ -2,7 +2,7 @@ import { TFile } from "obsidian";
 
 /** Default Markdown base name for a PDF (same stem, no extension). */
 export function defaultPdfOutputBaseName(pdfFile: TFile): string {
-	return pdfFile.basename.replace(/\.pdf$/i, "");
+	return pdfFile.basename;
 }
 
 /** Remove characters invalid in vault file names. */

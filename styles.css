@@ -21,6 +21,9 @@ If your plugin does not need CSS, delete this file.
 	--ll-surface-hover: color-mix(in srgb, var(--interactive-accent) 5%, var(--background-secondary));
 	--ll-border: color-mix(in srgb, var(--background-modifier-border) 90%, transparent);
 	--ll-border-strong: color-mix(in srgb, var(--interactive-accent) 28%, var(--background-modifier-border));
+	--ll-shadow: 0 1px 2px color-mix(in srgb, #000 4%, transparent);
+	--ll-shadow-md: 0 4px 16px color-mix(in srgb, #000 6%, transparent);
+	--ll-shadow-lg: 0 12px 32px color-mix(in srgb, #000 8%, transparent);
 }
 
 .lecture-lens-input-error {
@@ -622,9 +625,6 @@ If your plugin does not need CSS, delete this file.
 	--ll-context-history: color-mix(in srgb, var(--color-blue) 55%, var(--interactive-accent));
 	--ll-accent-soft: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
 	--ll-accent-border: color-mix(in srgb, var(--interactive-accent) 32%, var(--background-modifier-border));
-	--ll-shadow: 0 1px 2px color-mix(in srgb, #000 4%, transparent);
-	--ll-shadow-md: 0 4px 16px color-mix(in srgb, #000 6%, transparent);
-	--ll-shadow-lg: 0 12px 32px color-mix(in srgb, #000 8%, transparent);
 
 	display: flex;
 	flex-direction: column;

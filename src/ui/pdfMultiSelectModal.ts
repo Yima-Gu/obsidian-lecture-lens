@@ -1,4 +1,4 @@
-import { App, Modal, Setting, TFile } from "obsidian";
+import { App, Modal, Notice, Setting, TFile } from "obsidian";
 import { TranslationKey } from "../i18n";
 
 export class PdfMultiSelectModal extends Modal {
@@ -126,6 +126,7 @@ export class PdfMultiSelectModal extends Modal {
 		const pdfs = this.getPdfFiles();
 		const chosen = pdfs.filter((file) => this.selected.has(file.path));
 		if (chosen.length === 0) {
+			new Notice(this.tr("notice.pdfNotesNoFilesSelected"), 4000);
 			return;
 		}
 		this.close();

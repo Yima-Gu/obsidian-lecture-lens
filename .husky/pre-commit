@@ -1,1 +1,15 @@
-node ./node_modules/lint-staged/bin/lint-staged.js
+#!/bin/sh
+set -e
+
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|mjs)$' || true)
+if [ -n "$files" ]; then
+	# shellcheck disable=SC2086
+	npx eslint --fix $files
+fi
+
+json_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(json|md)$' || true)
+if [ -n "$json_files" ]; then
+	# shellcheck disable=SC2086
+	npx prettier --write $json_files
+	git add $json_files
+fi

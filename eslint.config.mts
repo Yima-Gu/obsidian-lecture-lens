@@ -30,6 +30,7 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	...obsidianmd.configs.recommendedWithLocalesEn,
 	globalIgnores([
 		"node_modules",
 		"dist",

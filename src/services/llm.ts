@@ -222,10 +222,8 @@ stream: true,
 
 let response: Response;
 try {
-// fetch is used intentionally here because requestUrl does not support
-// streaming responses (server-sent events). This is safe in Electron.
-// eslint-disable-next-line no-restricted-globals
-response = await fetch(url, {
+	// requestUrl does not support streaming SSE; window.fetch is required here.
+	response = await window.fetch(url, {
 method: "POST",
 headers: {
 "Content-Type": "application/json",
@@ -326,10 +324,10 @@ let response: RequestUrlResponse;
 
 try {
 // Create a timeout promise with cleanup
-let timeoutId: ReturnType<typeof setTimeout> | undefined;
-const timeoutMs = this.config.timeout ?? 30000;
-const timeoutPromise = new Promise<never>((_, reject) => {
-timeoutId = setTimeout(() => {
+	let timeoutId: number | undefined;
+	const timeoutMs = this.config.timeout ?? 30000;
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeoutId = window.setTimeout(() => {
 reject(
 new LLMServiceError(
 `Request timeout after ${timeoutMs}ms`
@@ -345,9 +343,9 @@ timeoutPromise,
 ]);
 
 // Clear timeout if request completed successfully
-if (timeoutId !== undefined) {
-clearTimeout(timeoutId);
-}
+		if (timeoutId !== undefined) {
+			window.clearTimeout(timeoutId);
+		}
 } catch (error) {
 // Network errors or timeout
 if (error instanceof LLMServiceError) {
@@ -409,7 +407,7 @@ throw new LLMServiceError(
  * Helper method to sleep for a given duration
  */
 private sleep(ms: number): Promise<void> {
-return new Promise((resolve) => setTimeout(resolve, ms));
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 /**

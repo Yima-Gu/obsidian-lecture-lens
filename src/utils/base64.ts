@@ -1,7 +1,7 @@
 /** Convert binary data to base64 (Electron Buffer or browser fallback). */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	if (typeof Buffer !== "undefined") {
-		// eslint-disable-next-line no-undef
+		// eslint-disable-next-line no-undef -- Buffer exists in Obsidian's Electron renderer.
 		return Buffer.from(buffer).toString("base64");
 	}
 

@@ -30,16 +30,16 @@ function wrapDiagram(
 	if (diagram.getAttribute(ENHANCED_ATTR) === "true") return;
 	if (diagram.closest(".lecture-lens-mermaid-shell")) return;
 
-	const shell = document.createElement("div");
+	const shell = activeDocument.createElement("div");
 	shell.className = "lecture-lens-mermaid-shell";
 
-	const scroll = document.createElement("div");
+	const scroll = activeDocument.createElement("div");
 	scroll.className = "lecture-lens-mermaid-scroll";
 	scroll.setAttribute("role", "button");
 	scroll.setAttribute("tabindex", "0");
 	scroll.setAttribute("aria-label", labels.clickToZoom);
 
-	const hint = document.createElement("div");
+	const hint = activeDocument.createElement("div");
 	hint.className = "lecture-lens-mermaid-hint";
 	hint.textContent = `${labels.clickToZoom} · ${labels.scrollHint}`;
 

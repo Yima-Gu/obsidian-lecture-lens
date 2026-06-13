@@ -1,5 +1,3 @@
-// Plugin name uses title case in the sidebar label.
-/* eslint-disable obsidianmd/ui/sentence-case */
 import {
 	ItemView,
 	MarkdownView,
@@ -106,7 +104,7 @@ export class ChatView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Lecture Lens";
+		return this.plugin.tr("chat.viewTitle");
 	}
 
 	getIcon(): string {
@@ -1121,9 +1119,9 @@ export class ChatView extends ItemView {
 			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 		};
 		scrollNow();
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			scrollNow();
-			requestAnimationFrame(scrollNow);
+			window.requestAnimationFrame(scrollNow);
 		});
 	}
 

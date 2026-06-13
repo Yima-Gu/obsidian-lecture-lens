@@ -47,6 +47,10 @@ export const zh: Record<TranslationKey, string> = {
 	"settings.testConnection.errorNetwork": "❌ 网络错误：请检查网络连接。",
 	"settings.testConnection.errorGeneric": "❌ 连接错误：{{message}}...（请查看控制台详情）",
 
+	"settings.common.placeholderBaseUrl": "https://api.openai.com/v1",
+	"settings.common.placeholderApiKey": "sk-...",
+	"settings.common.placeholderEmbeddingModel": "text-embedding-3-small",
+
 	"settings.llmProfiles.heading": "LLM API 配置",
 	"settings.llmProfiles.desc":
 		"保存多个 API 配置（DeepSeek、Kimi、OpenAI 等）。在聊天面板中选择使用哪个大模型。",
@@ -251,6 +255,7 @@ export const zh: Record<TranslationKey, string> = {
 
 	"fileMenu.generatePdfNotes": "生成 Markdown 笔记",
 
+	"chat.viewTitle": "Lecture lens",
 	"chat.title": "Lecture Lens 聊天",
 	"chat.subtitle": "AI 课程助手",
 	"chat.welcome":

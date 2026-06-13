@@ -11,7 +11,8 @@ type SafeStorage = {
 function getSafeStorage(): SafeStorage | null {
 	if (!Platform.isDesktopApp) return null;
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
+		// Electron safeStorage is only available via require on desktop builds.
+		// eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef -- safeStorage has no Obsidian wrapper API.
 		const electron = require("electron") as { safeStorage?: SafeStorage };
 		const safeStorage = electron.safeStorage;
 		if (!safeStorage?.isEncryptionAvailable()) return null;

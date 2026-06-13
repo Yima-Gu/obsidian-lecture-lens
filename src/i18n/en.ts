@@ -46,6 +46,10 @@ export const en = {
 	"settings.testConnection.errorNetwork": "❌ Network error: check your connection.",
 	"settings.testConnection.errorGeneric": "❌ Connection error: {{message}}... (see console for details)",
 
+	"settings.common.placeholderBaseUrl": "https://api.openai.com/v1",
+	"settings.common.placeholderApiKey": "sk-...",
+	"settings.common.placeholderEmbeddingModel": "text-embedding-3-small",
+
 	"settings.llmProfiles.heading": "LLM API profiles",
 	"settings.llmProfiles.desc":
 		"Save multiple API configurations (DeepSeek, Kimi, OpenAI, etc.). Choose which profile to use in the chat panel.",
@@ -259,6 +263,7 @@ export const en = {
 	"fileMenu.generatePdfNotes": "Generate Markdown notes",
 
 	// Chat view
+	"chat.viewTitle": "Lecture lens",
 	"chat.title": "Lecture Lens Chat",
 	"chat.subtitle": "AI study assistant",
 	"chat.welcome":

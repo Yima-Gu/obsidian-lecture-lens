@@ -31,7 +31,7 @@ export class PdfNotesProgressHud {
 	mount(): void {
 		this.unmount();
 
-		this.root = document.body.createDiv({ cls: "lecture-lens-pdf-hud" });
+		this.root = activeDocument.body.createDiv({ cls: "lecture-lens-pdf-hud" });
 
 		const body = this.root.createDiv({ cls: "lecture-lens-pdf-hud-body" });
 		const row = body.createDiv({ cls: "lecture-lens-pdf-hud-row" });
@@ -53,7 +53,7 @@ export class PdfNotesProgressHud {
 			this.root.addEventListener("click", this.onClick);
 		}
 
-		requestAnimationFrame(() => this.root?.addClass("is-visible"));
+		window.requestAnimationFrame(() => this.root?.addClass("is-visible"));
 	}
 
 	update(view: PdfNotesProgressView): void {

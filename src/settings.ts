@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case */
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { UiLanguage } from "./i18n";
 import { EmbeddingMode } from "./services/embeddingConfig";
@@ -431,7 +430,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				.setDesc(tr("settings.embeddingBaseUrl.desc"))
 				.addText((text) =>
 					text
-						.setPlaceholder("https://api.openai.com/v1")
+						.setPlaceholder(tr("settings.common.placeholderBaseUrl"))
 						.setValue(this.plugin.settings.embeddingBaseUrl)
 						.onChange(async (value) => {
 							this.plugin.settings.embeddingBaseUrl = value.trim();
@@ -449,7 +448,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				.addText((text) => {
 					text.inputEl.type = "password";
 					text
-						.setPlaceholder("sk-...")
+						.setPlaceholder(tr("settings.common.placeholderApiKey"))
 						.setValue(this.plugin.settings.embeddingApiKey)
 						.onChange(async (value) => {
 							this.plugin.settings.embeddingApiKey = value.trim();
@@ -462,7 +461,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				.setDesc(tr("settings.embeddingModel.desc"))
 				.addText((text) =>
 					text
-						.setPlaceholder("text-embedding-3-small")
+						.setPlaceholder(tr("settings.common.placeholderEmbeddingModel"))
 						.setValue(this.plugin.settings.embeddingModelName)
 						.onChange(async (value) => {
 							this.plugin.settings.embeddingModelName = value.trim();

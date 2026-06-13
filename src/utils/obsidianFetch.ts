@@ -5,9 +5,9 @@ export type FetchPatcher = () => void;
 
 /** Route HTTPS downloads through Obsidian requestUrl (bypasses browser CORS in Electron). */
 export function installObsidianFetch(): FetchPatcher {
-	const originalFetch = globalThis.fetch.bind(globalThis);
+	const originalFetch = window.fetch.bind(window);
 
-	globalThis.fetch = (async (
+	window.fetch = (async (
 		input: RequestInfo | URL,
 		init?: RequestInit
 	): Promise<Response> => {
@@ -57,7 +57,7 @@ export function installObsidianFetch(): FetchPatcher {
 	}) as typeof fetch;
 
 	return () => {
-		globalThis.fetch = originalFetch;
+		window.fetch = originalFetch;
 	};
 }
 

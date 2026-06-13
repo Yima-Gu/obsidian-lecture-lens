@@ -40,6 +40,8 @@
 
 > **Vision chat**: use a VLM such as `gpt-4o`, Kimi `*-vision-*`, or `deepseek-vl2`. Text models like `deepseek-v4-flash` do not accept images.
 
+> **Recommended (author-tested):** **DeepSeek** for text-heavy work (chat, PDF → Markdown) and **Kimi (Moonshot)** for vision / image uploads. Both presets work with the default models above.
+
 ### Installation
 
 **From Obsidian Community Plugins** (when published)
@@ -153,6 +155,10 @@ For the Obsidian community catalog, follow the [official plugin submission proce
 - **粘贴 OCR** — 粘贴截图自动保存，可立即分析
 - **自带 Key** — 预设 **DeepSeek**、**Kimi（月之暗面）**、OpenAI、Gemini 或自定义接口
 - **中英界面** — 可跟随 Obsidian 或手动切换
+
+### 推荐 API 配置
+
+> **作者实测可用：** **DeepSeek** 适合文字类任务（聊天、PDF 转 Markdown）；**Kimi（月之暗面）** 适合识图 / 多模态上传。使用插件预设与默认模型即可。
 
 ### 安装
 

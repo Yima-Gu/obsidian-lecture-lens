@@ -1,7 +1,7 @@
 {
 	"id": "lecture-lens",
 	"name": "Lecture Lens",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "0.15.0",
 	"description": "Turn lecture PDFs and course materials into structured Markdown notes with LLM chat and RAG.",
 	"author": "Yima Gu",

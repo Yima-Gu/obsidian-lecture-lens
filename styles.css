@@ -299,16 +299,25 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-pdf-notes-options-modal,
 .lecture-lens-pdf-multi-select-modal {
-	min-width: min(720px, 92vw);
-	max-width: 920px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* Widen the Obsidian modal shell — inner min-width alone does not expand it */
+.modal.lecture-lens-modal {
+	width: min(880px, 96vw);
+	max-width: 96vw;
 }
 
 /* Shared modal chrome */
 .lecture-lens-modal .modal-content {
+	width: 100%;
+	max-width: none;
+	box-sizing: border-box;
 	border-radius: var(--ll-radius-lg);
 	border: 1px solid var(--ll-border);
 	box-shadow: var(--ll-shadow-lg);
-	padding: 18px 20px 16px;
+	padding: 20px 22px 18px;
 }
 
 .lecture-lens-modal .modal-content h2 {
@@ -325,6 +334,38 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-modal .setting-item {
 	border-radius: var(--ll-radius-sm);
 	transition: background var(--ll-duration) var(--ll-ease);
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 8px 12px;
+}
+
+.lecture-lens-modal .setting-item-info {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+
+.lecture-lens-modal .setting-item-control {
+	flex: 1 1 280px;
+	min-width: 0;
+	max-width: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.lecture-lens-modal .setting-item-control input[type="text"],
+.lecture-lens-modal .setting-item-control textarea {
+	flex: 1 1 240px;
+	min-width: 0;
+	width: auto;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.lecture-lens-modal .setting-item-control textarea {
+	flex: 1 1 100%;
+	width: 100%;
 }
 
 .lecture-lens-pdf-notes-file-section {
@@ -345,9 +386,13 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-pdf-notes-file-header,
 .lecture-lens-pdf-notes-file-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.8fr) auto;
-	gap: 8px;
+	grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+	gap: 10px 12px;
 	align-items: center;
+}
+
+.lecture-lens-pdf-notes-file-row:has(.lecture-lens-pdf-notes-remove) {
+	grid-template-columns: minmax(0, 1fr) minmax(200px, 280px) auto;
 }
 
 .lecture-lens-pdf-notes-file-header {
@@ -393,7 +438,8 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-pdf-notes-file-name {
 	display: flex;
 	align-items: center;
-	gap: 2px;
+	gap: 4px;
+	min-width: 0;
 }
 
 .lecture-lens-pdf-notes-name-input {
@@ -417,6 +463,15 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-pdf-notes-name-suffix {
 	color: var(--text-muted);
 	font-size: 12px;
+}
+
+.lecture-lens-pdf-notes-prompt-setting .setting-item-control {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.lecture-lens-pdf-notes-prompt-setting .setting-item-control button {
+	align-self: flex-end;
 }
 
 .lecture-lens-pdf-notes-remove {

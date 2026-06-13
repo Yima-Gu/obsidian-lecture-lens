@@ -230,7 +230,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 			.setDesc(tr("settings.pdfNotesMergeMaxTokens.desc"))
 			.addSlider((slider) =>
 				slider
-					.setLimits(1024, 16384, 512)
+					.setLimits(1024, 65536, 1024)
 					.setValue(this.plugin.settings.pdfNotesMergeMaxTokens)
 					.setDynamicTooltip()
 					.onChange(async (value) => {

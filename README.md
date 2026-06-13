@@ -47,6 +47,25 @@
 1. Open **Settings → Community plugins**
 2. Search **Lecture Lens** and install
 
+**From a GitHub release**
+
+1. Open [Releases](https://github.com/Yima-Gu/obsidian-lecture-lens/releases) and download the latest assets (or pick a specific version).
+2. Copy these files into your vault’s plugin folder (create it if needed):
+    ```
+    <vault>/.obsidian/plugins/lecture-lens/
+    ```
+    Required files from the release:
+    - `main.js`
+    - `manifest.json`
+    - `styles.css`
+    - `transformers.min.js`
+    - `ort-wasm-simd.wasm`
+    - `ort-wasm.wasm`
+    - `pdf.worker*.min.mjs` (exact filename varies by PDF.js version)
+3. Enable **Lecture Lens** under **Settings → Community plugins**, then reload Obsidian (`Cmd+R` / `Ctrl+R`).
+
+> The folder name must be `lecture-lens` (matches `manifest.json` → `id`).
+
 **Manual / local development**
 
 1. Clone into your vault:
@@ -88,6 +107,33 @@ npm run lint
 
 See [AGENTS.md](./AGENTS.md) for contributor conventions.
 
+### Releases
+
+**Install:** use [GitHub Releases](https://github.com/Yima-Gu/obsidian-lecture-lens/releases/latest) — see **From a GitHub release** under [Installation](#installation) above.
+
+**Publish a new version (maintainers):**
+
+1. **Bump version** in `manifest.json` (SemVer, e.g. `1.2.0`).
+2. **Update** `versions.json` — add a line mapping the new plugin version to the minimum Obsidian app version, e.g. `"1.2.0": "0.15.0"`.
+3. **Verify build** locally:
+    ```bash
+    npm ci
+    npm run build
+    ```
+4. **Commit** the version changes on your release branch (e.g. `dev` → merge to `master` when ready).
+5. **Create and push a tag** — the tag must **exactly match** `manifest.json` `version` (no leading `v`):
+    ```bash
+    git tag 1.2.0
+    git push origin 1.2.0
+    ```
+6. **GitHub Actions** (`.github/workflows/release.yml`) runs on tag push: builds the plugin, checks that the tag matches `manifest.json`, and creates a GitHub Release with these assets:
+    - `main.js`, `manifest.json`, `styles.css`
+    - `transformers.min.js`, `ort-wasm-simd.wasm`, `ort-wasm.wasm`, `pdf.worker*.min.mjs`
+
+If the tag and `manifest.json` version differ, the workflow fails. After the release is published, users can download the assets from the release page.
+
+For the Obsidian community catalog, follow the [official plugin submission process](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines) and point reviewers to the same release assets.
+
 ---
 
 <a name="中文"></a>
@@ -110,6 +156,27 @@ See [AGENTS.md](./AGENTS.md) for contributor conventions.
 
 ### 安装
 
+**从 GitHub Release 安装**
+
+1. 打开 [Releases](https://github.com/Yima-Gu/obsidian-lecture-lens/releases)，下载最新版（或指定版本）的全部附件。
+2. 将文件复制到库内插件目录（不存在则新建）：
+    ```
+    <你的库>/.obsidian/plugins/lecture-lens/
+    ```
+    需要包含：
+    - `main.js`
+    - `manifest.json`
+    - `styles.css`
+    - `transformers.min.js`
+    - `ort-wasm-simd.wasm`
+    - `ort-wasm.wasm`
+    - `pdf.worker*.min.mjs`（文件名随 PDF.js 版本略有不同）
+3. 在 **设置 → 第三方插件** 中启用 **Lecture Lens**，然后 **Cmd+R** / **Ctrl+R** 重载 Obsidian。
+
+> 插件文件夹名必须为 `lecture-lens`（与 `manifest.json` 中的 `id` 一致）。
+
+**本地开发 / 手动构建**
+
 ```bash
 cd <你的库>/.obsidian/plugins
 git clone git@github.com:Yima-Gu/obsidian-lecture-lens.git lecture-lens
@@ -117,6 +184,10 @@ cd lecture-lens && npm install && npm run build
 ```
 
 在 **设置 → 第三方插件** 中启用 **Lecture Lens**，然后 **Cmd+R** 重载。
+
+**Obsidian 社区插件**（上架后）
+
+1. **设置 → 第三方插件** 中搜索 **Lecture Lens** 并安装。
 
 ### 快速上手
 
@@ -137,6 +208,33 @@ cd lecture-lens && npm install && npm run build
 npm run dev    # 监听编译
 npm run build  # 生产构建
 ```
+
+### 发布 Release
+
+**用户安装：** 见上方 [从 GitHub Release 安装](#安装)，或 [最新 Release](https://github.com/Yima-Gu/obsidian-lecture-lens/releases/latest)。
+
+**维护者发版流程：**
+
+1. 在 `manifest.json` 中更新 **version**（语义化版本，如 `1.2.0`）。
+2. 更新 `versions.json`，增加插件版本与最低 Obsidian 版本的映射，例如 `"1.2.0": "0.15.0"`。
+3. 本地验证构建：
+    ```bash
+    npm ci
+    npm run build
+    ```
+4. **提交** 版本变更（通常在 `dev` 分支开发，合并到 `master` 后发版）。
+5. **打 tag 并推送** — tag 必须与 `manifest.json` 的 `version` **完全一致**（不要加 `v` 前缀）：
+    ```bash
+    git tag 1.2.0
+    git push origin 1.2.0
+    ```
+6. **GitHub Actions**（`.github/workflows/release.yml`）会在 tag 推送后自动：构建插件、校验 tag 与 `manifest.json` 一致、创建 GitHub Release 并上传附件：
+    - `main.js`、`manifest.json`、`styles.css`
+    - `transformers.min.js`、`ort-wasm-simd.wasm`、`ort-wasm.wasm`、`pdf.worker*.min.mjs`
+
+若 tag 与 `manifest.json` 版本不一致，工作流会失败。Release 发布后，用户可从 Release 页面下载上述文件安装。
+
+若要提交 Obsidian 官方社区插件，请遵循 [插件发布指南](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines)，并使用同一套 Release 附件。
 
 ---
 

@@ -110,6 +110,7 @@ export class PdfNotesOptionsModal extends Modal {
 					.setButtonText(this.tr("modal.pdfNotesOptions.loadPromptFile"))
 					.onClick(() => this.loadPromptFromFile())
 			);
+		promptSetting.settingEl.addClass("lecture-lens-pdf-notes-prompt-setting");
 
 		this.promptDescEl = promptSetting.descEl;
 

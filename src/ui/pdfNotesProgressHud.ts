@@ -66,7 +66,8 @@ export class PdfNotesProgressHud {
 		this.titleEl.setText(cleanPhaseLabel(view.phaseLabel));
 		this.detailEl.setText(view.detail);
 		this.percentEl.setText(isError ? "—" : `${clamped}%`);
-		this.fillEl.style.width = isError ? "0%" : `${clamped}%`;
+		this.fillEl.style.width = isError ? "0%" : isDone ? "" : `${clamped}%`;
+		this.fillEl.toggleClass("is-complete", isDone);
 
 		if (this.hintEl) {
 			this.hintEl.setText(view.hint);

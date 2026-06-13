@@ -150,7 +150,12 @@ export class PdfNotesOptionsModal extends Modal {
 
 		for (let index = 0; index < this.entries.length; index++) {
 			const entry = this.entries[index]!;
-			const row = this.fileListEl.createDiv({ cls: "lecture-lens-pdf-notes-file-row" });
+			const row = this.fileListEl.createDiv({
+				cls:
+					this.entries.length > 1
+						? "lecture-lens-pdf-notes-file-row lecture-lens-pdf-notes-file-row-with-remove"
+						: "lecture-lens-pdf-notes-file-row",
+			});
 
 			const pdfCell = row.createDiv({ cls: "lecture-lens-pdf-notes-file-pdf" });
 			pdfCell.createSpan({

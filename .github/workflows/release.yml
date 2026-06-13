@@ -10,6 +10,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+            attestations: write
+            id-token: write
 
         steps:
             - uses: actions/checkout@v4
@@ -51,6 +53,13 @@ jobs:
                   fi
                   echo "Release artifacts:"
                   ls -lh main.js manifest.json styles.css transformers.min.js ort-wasm-simd.wasm ort-wasm.wasm "${workers[@]}"
+
+            - name: Attest release artifacts
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
 
             - name: Create GitHub release
               env:

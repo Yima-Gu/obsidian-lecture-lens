@@ -109,7 +109,14 @@ function validateOutline(raw: PdfOutline, pageCount: number): PdfOutline {
 	const normalized: PdfOutlineSection[] = [];
 	for (let index = 0; index < sections.length; index++) {
 		const section = sections[index]!;
-		const prevEnd = index > 0 ? normalized[index - 1]!.pageEnd : 0;
+		let prevEnd = index > 0 ? normalized[index - 1]!.pageEnd : 0;
+		if (index > 0 && section.pageStart > prevEnd + 1) {
+			const gapStart = prevEnd + 1;
+			const gapEnd = section.pageStart - 1;
+			normalized[index - 1]!.pageEnd = Math.min(gapEnd, pageCount);
+			prevEnd = normalized[index - 1]!.pageEnd;
+			console.warn(`PDF outline page gap filled: pages ${gapStart}-${gapEnd}`);
+		}
 		const pageStart = index === 0 ? 1 : Math.max(section.pageStart, prevEnd + 1);
 		const pageEnd = Math.max(pageStart, section.pageEnd);
 		if (pageStart > pageCount) break;

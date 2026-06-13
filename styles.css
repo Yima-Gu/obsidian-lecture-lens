@@ -183,7 +183,6 @@ If your plugin does not need CSS, delete this file.
 	top: 13px;
 	height: 1.5px;
 	background: var(--interactive-accent);
-	opacity: 0.45;
 	box-shadow: 0 4px 0 var(--interactive-accent);
 	opacity: 0.3;
 }

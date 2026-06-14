@@ -8,6 +8,7 @@ import { LectureLensSettings } from "../settings";
 import { EmbeddingRuntimeConfig } from "./embeddingConfig";
 import { hasCourseFolderInput } from "../utils/vaultPath";
 import { previewText } from "../utils/contextBudget";
+import { buildCitationSystemBlock } from "../utils/citationLinks";
 import {
 	ChatContextSnapshot,
 	ChatTurnInput,
@@ -20,6 +21,7 @@ const BASE_SYSTEM_PROMPT_PARTS = [
 	"Answer clearly using markdown, LaTeX math ($...$ or $$...$$), and mermaid when helpful.",
 	"For math, always use $...$ (inline) or $$...$$ (block). Do not wrap formulas in bare [ ] or \\\\[ \\\\].",
 	"Only use note content explicitly provided below; do not claim access to other files.",
+	"When using attached notes or RAG excerpts, cite sources inline with Obsidian wiki links ([[Note]] or [[Note#Section]]). A citation index is provided when sources are available.",
 	"When the user asks to edit or update their note, prefer SEARCH/REPLACE blocks so changes can be applied automatically:\n<<<<<<< SEARCH\nexact existing text\n=======\nreplacement text\n>>>>>>> REPLACE",
 	"For new content to insert, wrap the markdown in a ```markdown fenced block when possible.",
 ];
@@ -188,6 +190,11 @@ export async function buildChatContext(
 				);
 			}
 		}
+	}
+
+	const citationBlock = buildCitationSystemBlock(contextFiles, noteParts, ragChunks);
+	if (citationBlock) {
+		systemParts.push(citationBlock);
 	}
 
 	const historyLimit = settings.chatHistoryTurnLimit;

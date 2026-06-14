@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
 import { NoteContextPart } from "../types/chatContext";
+import { buildWikiLink } from "../utils/wikiLink";
 
 const TRUNCATION_MARKER = "\n\n… [content truncated for context limit]";
 
@@ -44,7 +45,7 @@ export class NoteContextService {
 			const content = await this.app.vault.read(file);
 			const truncated = content.length > maxCharsPerFile;
 			const text = truncated ? content.slice(0, maxCharsPerFile) + TRUNCATION_MARKER : content;
-			parts.push(`### ${file.path}\n\n${text}`);
+			parts.push(`### ${buildWikiLink(file.path)}\n\n${text}`);
 		}
 
 		return parts.join("\n\n---\n\n");

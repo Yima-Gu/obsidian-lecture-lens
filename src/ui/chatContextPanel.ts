@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { App, setIcon } from "obsidian";
 import { ChatContextSnapshot } from "../types/chatContext";
 import { TranslationKey } from "../i18n/en";
 import {
@@ -6,6 +6,7 @@ import {
 	estimateTokens,
 	formatContextSize,
 } from "../utils/contextBudget";
+import { appendWikiLinkEl } from "../utils/wikiLink";
 
 export interface ContextPanelControls {
 	includeRag: boolean;
@@ -84,7 +85,8 @@ export function updateContextPanelSummary(
 export function renderContextPanelBody(
 	bodyContent: HTMLElement,
 	snapshot: ChatContextSnapshot | null,
-	tr: Translator
+	tr: Translator,
+	app: App
 ): void {
 	bodyContent.empty();
 
@@ -104,7 +106,7 @@ export function renderContextPanelBody(
 	}
 
 	if (snapshot.notes.length > 0) {
-		renderNotesSection(bodyContent, snapshot, tr);
+		renderNotesSection(bodyContent, snapshot, tr, app);
 	} else if (snapshot.notesEnabled) {
 		bodyContent.createEl("p", {
 			cls: "lecture-lens-chat-context-empty-line",
@@ -112,7 +114,7 @@ export function renderContextPanelBody(
 		});
 	}
 
-	renderRagSection(bodyContent, snapshot, tr);
+	renderRagSection(bodyContent, snapshot, tr, app);
 }
 
 function formatContextSummary(
@@ -239,7 +241,8 @@ function renderHistorySection(
 function renderNotesSection(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: Translator
+	tr: Translator,
+	app: App
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -251,7 +254,7 @@ function renderNotesSection(
 	for (const note of snapshot.notes) {
 		const row = list.createEl("div", { cls: "lecture-lens-chat-context-note-item" });
 		const meta = row.createEl("div", { cls: "lecture-lens-chat-context-note-meta" });
-		meta.createSpan({ cls: "lecture-lens-chat-context-note-name", text: note.basename });
+		appendWikiLinkEl(meta, app, note.path);
 		meta.createSpan({
 			cls: "lecture-lens-chat-context-note-size",
 			text: tr("chat.contextPanel.noteSize", {
@@ -280,7 +283,8 @@ function renderNotesSection(
 function renderRagSection(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
-	tr: Translator
+	tr: Translator,
+	app: App
 ): void {
 	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
 	section.createEl("div", {
@@ -336,10 +340,8 @@ function renderRagSection(
 			attr: { style: `width:${clampPercent(chunk.score * 100)}%;` },
 		});
 
-		row.createEl("div", {
-			cls: "lecture-lens-chat-context-rag-source",
-			text: `${chunk.filePath} · ${chunk.heading}`,
-		});
+		const sourceRow = row.createEl("div", { cls: "lecture-lens-chat-context-rag-source" });
+		appendWikiLinkEl(sourceRow, app, chunk.filePath, chunk.heading);
 		row.createEl("div", {
 			cls: "lecture-lens-chat-context-rag-preview",
 			text: previewText(chunk.content, 120),

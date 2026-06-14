@@ -7,7 +7,25 @@
 >
 > 基于多模态大模型的 Obsidian 课件笔记与课程复习助手。
 
-[English](#english) · [中文](#中文)
+[English](#english) · [中文](#中文) · [Changelog](./CHANGELOG.md)
+
+## Demo
+
+### Chat & course Q&A · 聊天与课程问答
+
+![Chat and course Q&A demo](docs/demo/chat-qa.gif)
+
+Ask in the chat sidebar with course RAG and attached vault notes; replies stream as Markdown with clickable `[[wiki links]]` to sources.
+
+在聊天侧边栏结合课程 RAG 与 `@` 附加笔记提问，回答流式渲染 Markdown，并可点击 wiki 链接跳转来源笔记。
+
+### PDF → Markdown · PDF 转笔记
+
+![PDF to Markdown demo](docs/demo/pdf-convert.gif)
+
+Convert lecture PDFs into structured Markdown notes (single file or batch, with progress HUD).
+
+将课件 PDF 转为结构化 Markdown 笔记，支持单文件或批量转换与进度显示。
 
 ---
 

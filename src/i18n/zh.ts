@@ -318,6 +318,7 @@ export const zh: Record<TranslationKey, string> = {
 	"chat.replacedSelection": "已替换选中内容。",
 	"chat.appliedPatches": "已应用笔记修改。",
 	"chat.copied": "已复制到剪贴板",
+	"chat.citationSourcesHeading": "参考来源",
 	"chat.contextPanel.empty": "上下文",
 	"chat.contextPanel.hint": "输入问题或附加笔记后，可预览即将发送给模型的内容。",
 	"chat.contextPanel.preview": "预览",

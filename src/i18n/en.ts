@@ -329,6 +329,7 @@ export const en = {
 	"chat.replacedSelection": "Selection replaced.",
 	"chat.appliedPatches": "Applied note edits.",
 	"chat.copied": "Copied to clipboard",
+	"chat.citationSourcesHeading": "Sources",
 	"chat.contextPanel.empty": "Context",
 	"chat.contextPanel.hint": "Type a message or attach notes to preview what will be sent to the model.",
 	"chat.contextPanel.preview": "Preview",

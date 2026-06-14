@@ -35,10 +35,30 @@ export async function renderChatMarkdown(
 	const normalizedMarkdown = normalizeChatMathDelimiters(markdown);
 	await MarkdownRenderer.render(app, normalizedMarkdown, container, sourcePath, component);
 	wrapChatTables(container);
+	enhanceChatInternalLinks(app, component, container, sourcePath);
 
 	if (options?.mermaidLabels) {
 		const cleanup = enhanceChatMermaid(app, component, container, options.mermaidLabels);
 		mermaidCleanupByContainer.set(container, cleanup);
+	}
+}
+
+function enhanceChatInternalLinks(
+	app: App,
+	component: Component,
+	container: HTMLElement,
+	sourcePath: string
+): void {
+	for (const link of Array.from(container.querySelectorAll<HTMLAnchorElement>("a.internal-link"))) {
+		const href = link.getAttribute("href") ?? link.getAttribute("data-href") ?? link.textContent ?? "";
+		const openText = href.replace(/^#/, "").replace(/^\[\[|\]\]$/g, "");
+		if (!openText) continue;
+
+		component.registerDomEvent(link, "click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			void app.workspace.openLinkText(openText, sourcePath, false);
+		});
 	}
 }
 

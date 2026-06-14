@@ -8,6 +8,7 @@ import {
 	resolveVaultFolder,
 } from "../utils/vaultPath";
 import { ensurePluginDataDir, resolvePluginDataFile } from "../utils/pluginDataPath";
+import { buildWikiLink } from "../utils/wikiLink";
 
 const INDEX_VERSION = 2;
 const MAX_CHUNK_CHARS = 1200;
@@ -312,7 +313,7 @@ export class RagService {
 	formatContext(chunks: RetrievedChunk[]): string {
 		if (chunks.length === 0) return "";
 		return chunks
-			.map((c, i) => `[${i + 1}] ${c.filePath} — ${c.heading}\n${c.content}`)
+			.map((c, i) => `[${i + 1}] ${buildWikiLink(c.filePath, c.heading)}\n${c.content}`)
 			.join("\n\n---\n\n");
 	}
 }

@@ -33,7 +33,9 @@ import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
 import { ChatMessage, LLMServiceError } from "../services/llm";
 import { VaultFileSuggestModal } from "./fileSuggestModal";
 import { createStreamingMarkdownRenderer, renderChatMarkdown } from "../utils/markdownRender";
+import { enhanceAssistantCitations } from "../utils/citationLinks";
 import { MermaidEnhanceLabels } from "../utils/mermaidEnhance";
+import { appendWikiLinkEl } from "../utils/wikiLink";
 import { getCourseFolderDisplayPath, hasCourseFolderInput } from "../utils/vaultPath";
 import {
 	ChatImageAttachment,
@@ -742,9 +744,8 @@ export class ChatView extends ItemView {
 			});
 			const chipIcon = currentChip.createEl("span", { cls: "lecture-lens-chat-chip-icon" });
 			setIcon(chipIcon, "file-text");
-			currentChip.createSpan({
-				text: `${this.plugin.tr("chat.currentNote")}: ${activeFile.basename}`,
-			});
+			currentChip.createSpan({ text: `${this.plugin.tr("chat.currentNote")}: ` });
+			appendWikiLinkEl(currentChip, this.app, activeFile.path);
 			currentChip.addEventListener("click", () => {
 				this.includeCurrentNote = !this.includeCurrentNote;
 				this.renderContextChips();
@@ -758,7 +759,7 @@ export class ChatView extends ItemView {
 			});
 			const chipIcon = chip.createEl("span", { cls: "lecture-lens-chat-chip-icon" });
 			setIcon(chipIcon, "at-sign");
-			chip.createSpan({ text: file.basename });
+			appendWikiLinkEl(chip, this.app, file.path);
 			const removeBtn = chip.createEl("button", {
 				cls: "lecture-lens-chat-chip-remove",
 				text: "×",
@@ -1236,12 +1237,32 @@ export class ChatView extends ItemView {
 			}
 
 			this.applySessionModel();
-			const messages = (await this.buildMessagesWithSnapshot()).messages;
-			const fullResponse = await this.streamAssistantResponse(
+			const { messages, snapshot } = await this.buildMessagesWithSnapshot();
+			let fullResponse = await this.streamAssistantResponse(
 				contentEl,
 				messages,
 				sourcePath
 			);
+
+			const enhancedResponse = enhanceAssistantCitations(
+				fullResponse,
+				this.getContextFiles(),
+				snapshot.notes,
+				snapshot.ragChunks,
+				this.plugin.tr("chat.citationSourcesHeading")
+			);
+			if (enhancedResponse !== fullResponse) {
+				fullResponse = enhancedResponse;
+				await renderChatMarkdown(
+					this.app,
+					this,
+					contentEl,
+					fullResponse,
+					sourcePath,
+					this.getMermaidRenderOptions()
+				);
+				this.scrollMessagesToBottomIfPinned();
+			}
 
 			assistantMsg.removeClass("is-streaming");
 
@@ -1359,7 +1380,8 @@ export class ChatView extends ItemView {
 		renderContextPanelBody(
 			this.contextPanel.bodyContent,
 			this.lastContextSnapshot,
-			(key, params) => this.plugin.tr(key, params)
+			(key, params) => this.plugin.tr(key, params),
+			this.app
 		);
 	}
 

@@ -2137,6 +2137,31 @@ If your plugin does not need CSS, delete this file.
 	white-space: nowrap;
 }
 
+.lecture-lens-wiki-link {
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	color: var(--link-color, var(--interactive-accent));
+}
+
+.lecture-lens-wiki-link:hover {
+	text-decoration: underline;
+}
+
+.lecture-lens-chat-chip .lecture-lens-wiki-link {
+	font-size: inherit;
+	font-weight: 500;
+}
+
+.lecture-lens-chat-context-note-meta .lecture-lens-wiki-link,
+.lecture-lens-chat-context-rag-source .lecture-lens-wiki-link {
+	font-size: 0.72rem;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .lecture-lens-chat-context-note-size {
 	color: var(--text-faint);
 	flex-shrink: 0;

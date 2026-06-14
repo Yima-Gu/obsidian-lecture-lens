@@ -177,7 +177,6 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(10, 300, 10)
 					.setValue(this.plugin.settings.pdfNotesMaxPages)
-					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.pdfNotesMaxPages = value;
 						await this.plugin.saveSettings();
@@ -203,7 +202,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(2048, 16384, 512)
 					.setValue(this.plugin.settings.pdfNotesSectionMaxTokens)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.pdfNotesSectionMaxTokens = value;
 						await this.plugin.saveSettings();
@@ -217,7 +216,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(1, 4, 1)
 					.setValue(this.plugin.settings.pdfNotesSectionConcurrency)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.pdfNotesSectionConcurrency = value;
 						await this.plugin.saveSettings();
@@ -231,7 +230,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(1024, 65536, 1024)
 					.setValue(this.plugin.settings.pdfNotesMergeMaxTokens)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.pdfNotesMergeMaxTokens = value;
 						await this.plugin.saveSettings();
@@ -272,7 +271,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(1000, 20000, 500)
 					.setValue(this.plugin.settings.maxNoteContextChars)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.maxNoteContextChars = value;
 						await this.plugin.saveSettings();
@@ -286,7 +285,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(CHAT_MESSAGE_FONT_SIZE_MIN, CHAT_MESSAGE_FONT_SIZE_MAX, 1)
 					.setValue(this.plugin.settings.chatMessageFontSize)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						await this.plugin.setChatMessageFontSize(value);
 					})
@@ -301,7 +300,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(2, 30, 1)
 					.setValue(this.plugin.settings.chatHistoryTurnLimit)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.chatHistoryTurnLimit = value;
 						await this.plugin.saveSettings();
@@ -315,7 +314,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(8000, 128000, 1000)
 					.setValue(this.plugin.settings.chatContextBudgetChars)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.chatContextBudgetChars = value;
 						await this.plugin.saveSettings();
@@ -329,7 +328,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(0, 0.8, 0.05)
 					.setValue(this.plugin.settings.chatRagMinScore)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.chatRagMinScore = value;
 						await this.plugin.saveSettings();
@@ -489,7 +488,7 @@ export class LectureLensSettingTab extends PluginSettingTab {
 				slider
 					.setLimits(1, 10, 1)
 					.setValue(this.plugin.settings.ragTopK)
-					.setDynamicTooltip()
+
 					.onChange(async (value) => {
 						this.plugin.settings.ragTopK = value;
 						await this.plugin.saveSettings();

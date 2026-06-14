@@ -26,8 +26,10 @@ If your plugin does not need CSS, delete this file.
 	--ll-shadow-lg: 0 12px 32px color-mix(in srgb, #000 8%, transparent);
 }
 
-.lecture-lens-input-error {
-	border-color: var(--text-error) !important;
+.lecture-lens-modal .setting-item .lecture-lens-input-error,
+.lecture-lens-modal textarea.lecture-lens-input-error,
+.lecture-lens-modal input.lecture-lens-input-error {
+	border-color: var(--text-error);
 	box-shadow: 0 0 0 1px var(--text-error) inset;
 }
 
@@ -273,8 +275,9 @@ If your plugin does not need CSS, delete this file.
 	transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-fill {
-	width: 100% !important;
+.lecture-lens-pdf-hud[data-phase="done"] .lecture-lens-pdf-hud-fill,
+.lecture-lens-pdf-hud-fill.is-complete {
+	width: 100%;
 	background: var(--color-green);
 }
 
@@ -393,7 +396,7 @@ If your plugin does not need CSS, delete this file.
 	align-items: center;
 }
 
-.lecture-lens-pdf-notes-file-row:has(.lecture-lens-pdf-notes-remove) {
+.lecture-lens-pdf-notes-file-row.lecture-lens-pdf-notes-file-row-with-remove {
 	grid-template-columns: minmax(0, 1fr) minmax(200px, 280px) auto;
 }
 
@@ -1135,6 +1138,8 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-turn-body,
 .lecture-lens-chat-turn-text {
+	min-width: 0;
+	max-width: 100%;
 	word-break: break-word;
 	line-height: 1.65;
 	font-size: var(--lecture-lens-chat-message-font-size, 14px);
@@ -1214,10 +1219,31 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-turn-body.markdown-rendered table,
 .lecture-lens-chat-turn-text.markdown-rendered table {
-	width: 100%;
 	border-collapse: collapse;
-	margin: 0.65em 0;
 	font-size: calc(var(--lecture-lens-chat-message-font-size, 14px) * 0.92);
+}
+
+.lecture-lens-table-scroll {
+	overflow-x: auto;
+	overflow-y: hidden;
+	max-width: 100%;
+	margin: 0.65em 0;
+	-webkit-overflow-scrolling: touch;
+}
+
+.lecture-lens-table-scroll::-webkit-scrollbar {
+	height: 6px;
+}
+
+.lecture-lens-table-scroll::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--text-faint) 35%, transparent);
+	border-radius: 999px;
+}
+
+.lecture-lens-table-scroll table {
+	width: max-content;
+	min-width: 100%;
+	margin: 0;
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered th,
@@ -1271,9 +1297,7 @@ If your plugin does not need CSS, delete this file.
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered .math-block,
-.lecture-lens-chat-turn-text.markdown-rendered .math-block,
-.lecture-lens-chat-turn-body.markdown-rendered mjx-container,
-.lecture-lens-chat-turn-text.markdown-rendered mjx-container {
+.lecture-lens-chat-turn-text.markdown-rendered .math-block {
 	overflow-x: auto;
 	margin: 0.55em 0;
 	padding: 0.35em 0;

@@ -32,7 +32,7 @@ import LectureLensPlugin from "../main";
 import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
 import { ChatMessage, LLMServiceError } from "../services/llm";
 import { VaultFileSuggestModal } from "./fileSuggestModal";
-import { renderChatMarkdown, updateStreamingPlainText, clearStreamingPlainText } from "../utils/markdownRender";
+import { createStreamingMarkdownRenderer, renderChatMarkdown } from "../utils/markdownRender";
 import { MermaidEnhanceLabels } from "../utils/mermaidEnhance";
 import { getCourseFolderDisplayPath, hasCourseFolderInput } from "../utils/vaultPath";
 import {
@@ -1113,16 +1113,28 @@ export class ChatView extends ItemView {
 		return contentEl;
 	}
 
+	private static readonly SCROLL_PIN_THRESHOLD = 80;
+
+	private isMessagesPinnedToBottom(): boolean {
+		if (!this.messagesEl) return true;
+		const el = this.messagesEl;
+		return el.scrollHeight - el.scrollTop - el.clientHeight <= ChatView.SCROLL_PIN_THRESHOLD;
+	}
+
+	private scrollMessagesToBottomIfPinned(): void {
+		if (this.isMessagesPinnedToBottom()) {
+			this.scrollMessagesToBottom();
+		}
+	}
+
 	private scrollMessagesToBottom(): void {
 		if (!this.messagesEl) return;
+		const el = this.messagesEl;
 		const scrollNow = () => {
-			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+			el.scrollTop = el.scrollHeight;
 		};
 		scrollNow();
-		window.requestAnimationFrame(() => {
-			scrollNow();
-			window.requestAnimationFrame(scrollNow);
-		});
+		window.requestAnimationFrame(scrollNow);
 	}
 
 	private async copyToClipboard(text: string): Promise<void> {
@@ -1212,7 +1224,7 @@ export class ChatView extends ItemView {
 						relayStatusEl.setText(
 							`${this.plugin.tr("chat.analyzingImages")}\n\n${fullText}`
 						);
-						this.scrollMessagesToBottom();
+						this.scrollMessagesToBottomIfPinned();
 					}
 				);
 
@@ -1269,36 +1281,30 @@ export class ChatView extends ItemView {
 		contentEl.removeClass("is-typing");
 		contentEl.empty();
 
-		const streamRenderIntervalMs = 48;
-		let lastPlainUpdate = 0;
-
-		const paintPlain = (force = false): void => {
-			const now = Date.now();
-			if (!force && now - lastPlainUpdate < streamRenderIntervalMs) return;
-			lastPlainUpdate = now;
-			updateStreamingPlainText(contentEl, fullResponse);
-			this.scrollMessagesToBottom();
-		};
-
-		for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
-			temperature: 0.7,
-			max_tokens: DEFAULT_CHAT_MAX_TOKENS,
-		})) {
-			fullResponse += chunk;
-			paintPlain();
-		}
-
-		paintPlain(true);
-		clearStreamingPlainText(contentEl);
-		await renderChatMarkdown(
+		const renderer = createStreamingMarkdownRenderer(
 			this.app,
 			this,
 			contentEl,
-			fullResponse,
 			sourcePath,
-			this.getMermaidRenderOptions()
+			this.getMermaidRenderOptions(),
+			120,
+			() => this.scrollMessagesToBottomIfPinned()
 		);
-		this.scrollMessagesToBottom();
+
+		try {
+			for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
+				temperature: 0.7,
+				max_tokens: DEFAULT_CHAT_MAX_TOKENS,
+			})) {
+				fullResponse += chunk;
+				renderer.update(fullResponse);
+			}
+
+			await renderer.flush();
+		} finally {
+			renderer.dispose();
+		}
+
 		return fullResponse;
 	}
 

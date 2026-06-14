@@ -23,7 +23,7 @@ import { releaseOnnxWasmPaths } from "./utils/onnxWasmPaths";
 import { EmbeddingModelStatusService } from "./services/embeddingModelStatus";
 import { ChatHistoryService } from "./services/chatHistoryService";
 import { VisionRelayService } from "./services/visionRelayService";
-import { configurePdfWorker } from "./services/pdfDocumentService";
+import { configurePdfWorker, releasePdfWorker } from "./services/pdfDocumentService";
 import { runPdfNotesPipeline } from "./features/pdfNotes/pdfNotesPipeline";
 import {
 	findProfileById,
@@ -137,6 +137,7 @@ export default class LectureLensPlugin extends Plugin {
 	onunload() {
 		this.activePdfNotesJob?.dispose();
 		void this.localEmbeddingService.unload();
+		releasePdfWorker();
 		releaseOnnxWasmPaths();
 		restoreObsidianProcessPatch();
 	}

@@ -151,7 +151,12 @@ export class LocalEmbeddingService {
 		}
 
 		const wasmPaths = await resolveOnnxWasmPaths(this.app, this.pluginId);
-		configureTransformersEnv(embeddingEnv, normalizedMirror, this.modelCache, wasmPaths);
+		configureTransformersEnv(
+			embeddingEnv,
+			normalizedMirror,
+			this.modelCache,
+			wasmPaths ?? undefined
+		);
 
 		onProgress?.(`Loading ${normalizedModel} from ${normalizedMirror}...`);
 

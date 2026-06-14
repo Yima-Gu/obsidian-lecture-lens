@@ -8,6 +8,19 @@ export interface ChatMarkdownRenderOptions {
 
 const mermaidCleanupByContainer = new WeakMap<HTMLElement, () => void>();
 
+function wrapChatTables(container: HTMLElement): void {
+	for (const table of Array.from(container.querySelectorAll("table"))) {
+		if (table.closest(".lecture-lens-table-scroll")) continue;
+		const parent = table.parentElement;
+		if (!parent) continue;
+
+		const scroll = document.createElement("div");
+		scroll.className = "lecture-lens-table-scroll";
+		parent.insertBefore(scroll, table);
+		scroll.appendChild(table);
+	}
+}
+
 export async function renderChatMarkdown(
 	app: App,
 	component: Component,
@@ -21,6 +34,7 @@ export async function renderChatMarkdown(
 	container.addClass("markdown-rendered");
 	const normalizedMarkdown = normalizeChatMathDelimiters(markdown);
 	await MarkdownRenderer.render(app, normalizedMarkdown, container, sourcePath, component);
+	wrapChatTables(container);
 
 	if (options?.mermaidLabels) {
 		const cleanup = enhanceChatMermaid(app, component, container, options.mermaidLabels);
@@ -47,13 +61,81 @@ export function debounceRender(
 	}, delayMs);
 }
 
-/** Fast plain-text updates while SSE chunks arrive (markdown render comes at end). */
-export function updateStreamingPlainText(container: HTMLElement, text: string): void {
-	container.removeClass("markdown-rendered");
-	container.addClass("is-streaming-plain");
-	container.setText(text);
+export interface StreamingMarkdownRenderer {
+	update(markdown: string): void;
+	flush(): Promise<void>;
+	dispose(): void;
 }
 
-export function clearStreamingPlainText(container: HTMLElement): void {
-	container.removeClass("is-streaming-plain");
+/** Throttled markdown renderer for SSE streams (not debounce — debounce never fires until idle). */
+export function createStreamingMarkdownRenderer(
+	app: App,
+	component: Component,
+	container: HTMLElement,
+	sourcePath: string,
+	options?: ChatMarkdownRenderOptions,
+	throttleMs = 120,
+	onRendered?: () => void
+): StreamingMarkdownRenderer {
+	let markdown = "";
+	let lastRenderAt = 0;
+	let throttleTimer: number | null = null;
+	let renderChain = Promise.resolve();
+	let disposed = false;
+
+	const runRender = (): void => {
+		if (disposed) return;
+		lastRenderAt = Date.now();
+		renderChain = renderChain.then(async () => {
+			if (disposed) return;
+			const text = markdown;
+			if (!text) return;
+			await renderChatMarkdown(app, component, container, text, sourcePath, options);
+			onRendered?.();
+			if (!disposed && markdown !== text) {
+				schedule(false);
+			}
+		});
+	};
+
+	const schedule = (force: boolean): void => {
+		if (disposed) return;
+		if (force) {
+			if (throttleTimer !== null) {
+				window.clearTimeout(throttleTimer);
+				throttleTimer = null;
+			}
+			runRender();
+			return;
+		}
+		const now = Date.now();
+		if (now - lastRenderAt >= throttleMs) {
+			runRender();
+			return;
+		}
+		if (throttleTimer === null) {
+			throttleTimer = window.setTimeout(() => {
+				throttleTimer = null;
+				runRender();
+			}, throttleMs - (now - lastRenderAt));
+		}
+	};
+
+	return {
+		update(next: string) {
+			markdown = next;
+			schedule(false);
+		},
+		async flush() {
+			schedule(true);
+			await renderChain;
+		},
+		dispose() {
+			disposed = true;
+			if (throttleTimer !== null) {
+				window.clearTimeout(throttleTimer);
+				throttleTimer = null;
+			}
+		},
+	};
 }

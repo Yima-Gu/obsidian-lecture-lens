@@ -1138,6 +1138,8 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-turn-body,
 .lecture-lens-chat-turn-text {
+	min-width: 0;
+	max-width: 100%;
 	word-break: break-word;
 	line-height: 1.65;
 	font-size: var(--lecture-lens-chat-message-font-size, 14px);
@@ -1217,10 +1219,31 @@ If your plugin does not need CSS, delete this file.
 
 .lecture-lens-chat-turn-body.markdown-rendered table,
 .lecture-lens-chat-turn-text.markdown-rendered table {
-	width: 100%;
 	border-collapse: collapse;
-	margin: 0.65em 0;
 	font-size: calc(var(--lecture-lens-chat-message-font-size, 14px) * 0.92);
+}
+
+.lecture-lens-table-scroll {
+	overflow-x: auto;
+	overflow-y: hidden;
+	max-width: 100%;
+	margin: 0.65em 0;
+	-webkit-overflow-scrolling: touch;
+}
+
+.lecture-lens-table-scroll::-webkit-scrollbar {
+	height: 6px;
+}
+
+.lecture-lens-table-scroll::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--text-faint) 35%, transparent);
+	border-radius: 999px;
+}
+
+.lecture-lens-table-scroll table {
+	width: max-content;
+	min-width: 100%;
+	margin: 0;
 }
 
 .lecture-lens-chat-turn-body.markdown-rendered th,

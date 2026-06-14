@@ -13,7 +13,7 @@
 
 ### Chat & course Q&A · 聊天与课程问答
 
-<video src="docs/demo/chat-qa.mp4" autoplay loop muted playsinline width="720"></video>
+![Chat and course Q&A demo](docs/demo/chat-qa.gif)
 
 Ask in the chat sidebar with course RAG and attached vault notes; replies stream as Markdown with clickable `[[wiki links]]` to sources.
 
@@ -21,7 +21,7 @@ Ask in the chat sidebar with course RAG and attached vault notes; replies stream
 
 ### PDF → Markdown · PDF 转笔记
 
-<video src="docs/demo/pdf-convert.mp4" autoplay loop muted playsinline width="720"></video>
+![PDF to Markdown demo](docs/demo/pdf-convert.gif)
 
 Convert lecture PDFs into structured Markdown notes (single file or batch, with progress HUD).
 

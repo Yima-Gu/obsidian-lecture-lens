@@ -15,9 +15,17 @@
 
 ![Chat and course Q&A demo](docs/demo/chat-qa.gif)
 
-Ask in the chat sidebar with course RAG and attached vault notes; replies stream as Markdown with clickable `[[wiki links]]` to sources.
+Ask in the chat sidebar with attached vault notes; replies stream as Markdown.
 
-在聊天侧边栏结合课程 RAG 与 `@` 附加笔记提问，回答流式渲染 Markdown，并可点击 wiki 链接跳转来源笔记。
+在聊天侧边栏结合 `@` 附加笔记提问，回答流式渲染 Markdown。
+
+### Course RAG & sources · 课程 RAG 与来源引用
+
+![Course RAG demo with wiki link citations](docs/demo/rag-demo.png)
+
+Index a course folder, retrieve relevant note chunks, and cite sources inline with clickable `[[wiki links]]` (e.g. `[[Course/OS/Notes/...]]`).
+
+为课程文件夹建立索引，聊天时检索相关笔记片段，并在回答中用可点击的 `[[wiki 链接]]` 标注来源。
 
 ### PDF → Markdown · PDF 转笔记
 

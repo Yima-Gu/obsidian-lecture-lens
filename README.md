@@ -13,7 +13,7 @@
 
 ### Chat & course Q&A · 聊天与课程问答
 
-![Chat and course Q&A demo](docs/demo/chat-qa.gif)
+<img src="docs/demo/chat-qa.gif" width="720" alt="Chat and course Q&A demo">
 
 Ask in the chat sidebar with attached vault notes; replies stream as Markdown.
 
@@ -21,7 +21,7 @@ Ask in the chat sidebar with attached vault notes; replies stream as Markdown.
 
 ### Course RAG & sources · 课程 RAG 与来源引用
 
-![Course RAG demo with wiki link citations](docs/demo/rag-demo.png)
+<img src="docs/demo/rag-demo.png" width="720" alt="Course RAG demo with wiki link citations">
 
 Index a course folder, retrieve relevant note chunks, and cite sources inline with clickable `[[wiki links]]` (e.g. `[[Course/OS/Notes/...]]`).
 
@@ -29,7 +29,7 @@ Index a course folder, retrieve relevant note chunks, and cite sources inline wi
 
 ### PDF → Markdown · PDF 转笔记
 
-![PDF to Markdown demo](docs/demo/pdf-convert.gif)
+<img src="docs/demo/pdf-convert.gif" width="720" alt="PDF to Markdown demo">
 
 Convert lecture PDFs into structured Markdown notes (single file or batch, with progress HUD).
 

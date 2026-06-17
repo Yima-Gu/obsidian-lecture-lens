@@ -324,7 +324,9 @@ export const zh: Record<TranslationKey, string> = {
 	"chat.contextPanel.preview": "预览",
 	"chat.contextPanel.lastRequest": "上次请求",
 	"chat.contextPanel.summary":
-		"{{prefix}} · {{used}}/{{budget}} 字 (~{{tokens}} tok) · {{turns}} 轮 · {{notes}} 笔记 · {{rag}} RAG",
+		"{{prefix}} · {{percent}}% · {{turns}} 轮 · {{notes}} 笔记 · {{rag}} RAG",
+	"chat.contextPanel.budgetPercent": "{{percent}}%",
+	"chat.contextPanel.historyCompact": "含 {{included}}/{{total}} 轮对话",
 	"chat.contextPanel.includeNotes": "附加笔记",
 	"chat.contextPanel.includeRag": "课程 RAG",
 	"chat.contextPanel.budgetTitle": "上下文占用",

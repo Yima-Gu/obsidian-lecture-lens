@@ -335,7 +335,9 @@ export const en = {
 	"chat.contextPanel.preview": "Preview",
 	"chat.contextPanel.lastRequest": "Last request",
 	"chat.contextPanel.summary":
-		"{{prefix}} · {{used}}/{{budget}} chars (~{{tokens}} tok) · {{turns}} turns · {{notes}} notes · {{rag}} RAG",
+		"{{prefix}} · {{percent}}% · {{turns}} turns · {{notes}} notes · {{rag}} RAG",
+	"chat.contextPanel.budgetPercent": "{{percent}}%",
+	"chat.contextPanel.historyCompact": "{{included}} of {{total}} turns in context",
 	"chat.contextPanel.includeNotes": "Attached notes",
 	"chat.contextPanel.includeRag": "Course RAG",
 	"chat.contextPanel.budgetTitle": "Context budget",

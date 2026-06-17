@@ -162,35 +162,9 @@ export class ChatView extends ItemView {
 			cls: "mod-cta lecture-lens-chat-send-btn",
 			attr: { "aria-label": this.plugin.tr("chat.send"), title: this.plugin.tr("chat.send") },
 		});
-		setIcon(this.sendBtn, "send-horizontal");
+		setIcon(this.sendBtn, "arrow-up");
 
 		const footer = composerCard.createEl("div", { cls: "lecture-lens-chat-footer" });
-		const modelBar = footer.createEl("div", { cls: "lecture-lens-chat-model-bar" });
-
-		const providerGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
-		providerGroup.createSpan({
-			cls: "lecture-lens-chat-model-label",
-			text: this.plugin.tr("chat.providerSelect"),
-		});
-		this.providerSelectEl = providerGroup.createEl("select", {
-			cls: "dropdown lecture-lens-chat-model-select",
-		});
-		this.providerSelectEl.addEventListener("change", () => {
-			void this.handleProviderChange(this.providerSelectEl.value as ApiProvider);
-		});
-
-		const modelGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
-		modelGroup.createSpan({
-			cls: "lecture-lens-chat-model-label",
-			text: this.plugin.tr("chat.modelSelect"),
-		});
-		this.modelSelectEl = modelGroup.createEl("select", {
-			cls: "dropdown lecture-lens-chat-model-select lecture-lens-chat-model-select-wide",
-		});
-		this.modelSelectEl.addEventListener("change", () => {
-			void this.handleModelChange(this.modelSelectEl.value);
-		});
-
 		const footerTools = footer.createEl("div", { cls: "lecture-lens-chat-footer-tools" });
 		const leftActions = footerTools.createEl("div", { cls: "lecture-lens-chat-footer-left" });
 
@@ -198,17 +172,37 @@ export class ChatView extends ItemView {
 			cls: "lecture-lens-chat-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.addContext"), title: this.plugin.tr("chat.addContext") },
 		});
-		setIcon(addContextBtn, "paperclip");
+		setIcon(addContextBtn, "link-2");
 		addContextBtn.addEventListener("click", () => this.openFileSuggest());
 
 		const addImageBtn = leftActions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.addImage"), title: this.plugin.tr("chat.addImage") },
 		});
-		setIcon(addImageBtn, "image");
+		setIcon(addImageBtn, "image-plus");
 		addImageBtn.addEventListener("click", (event) => {
 			event.preventDefault();
 			this.openImagePicker();
+		});
+
+		const modelBar = footerTools.createEl("div", { cls: "lecture-lens-chat-model-bar" });
+
+		const providerGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		this.providerSelectEl = providerGroup.createEl("select", {
+			cls: "lecture-lens-chat-select lecture-lens-chat-model-select",
+			attr: { "aria-label": this.plugin.tr("chat.providerSelect") },
+		});
+		this.providerSelectEl.addEventListener("change", () => {
+			void this.handleProviderChange(this.providerSelectEl.value as ApiProvider);
+		});
+
+		const modelGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		this.modelSelectEl = modelGroup.createEl("select", {
+			cls: "lecture-lens-chat-select lecture-lens-chat-model-select lecture-lens-chat-model-select-wide",
+			attr: { "aria-label": this.plugin.tr("chat.modelSelect") },
+		});
+		this.modelSelectEl.addEventListener("change", () => {
+			void this.handleModelChange(this.modelSelectEl.value);
 		});
 
 		leftActions.createEl("span", {
@@ -321,14 +315,14 @@ export class ChatView extends ItemView {
 			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.buildIndex"), title: this.plugin.tr("chat.buildIndex") },
 		});
-		setIcon(indexBtn, "database");
+		setIcon(indexBtn, "refresh-cw");
 		indexBtn.addEventListener("click", () => void this.rebuildIndex());
 
 		const newChatBtn = actions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.newChat"), title: this.plugin.tr("chat.newChat") },
 		});
-		setIcon(newChatBtn, "plus");
+		setIcon(newChatBtn, "square-pen");
 		newChatBtn.addEventListener("click", () => void this.startNewChat());
 	}
 
@@ -345,8 +339,8 @@ export class ChatView extends ItemView {
 				"aria-label": this.plugin.tr("chat.fontSizeDecrease"),
 				title: this.plugin.tr("chat.fontSizeDecrease"),
 			},
-			text: "A−",
 		});
+		setIcon(decreaseBtn, "minus");
 		decreaseBtn.addEventListener("click", () => {
 			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize - 1);
 		});
@@ -362,8 +356,8 @@ export class ChatView extends ItemView {
 				"aria-label": this.plugin.tr("chat.fontSizeIncrease"),
 				title: this.plugin.tr("chat.fontSizeIncrease"),
 			},
-			text: "A+",
 		});
+		setIcon(increaseBtn, "plus");
 		increaseBtn.addEventListener("click", () => {
 			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize + 1);
 		});
@@ -394,7 +388,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.renameChat"),
 			},
 		});
-		setIcon(renameBtn, "pencil");
+		setIcon(renameBtn, "pencil-line");
 		renameBtn.addEventListener("click", () => this.openRenameSessionModal());
 
 		const deleteBtn = sessionActions.createEl("button", {
@@ -670,7 +664,7 @@ export class ChatView extends ItemView {
 		const summary = panel.createEl("summary", { cls: "lecture-lens-chat-scope-summary" });
 		const leading = summary.createEl("div", { cls: "lecture-lens-chat-scope-leading" });
 		const iconEl = leading.createEl("span", { cls: "lecture-lens-chat-scope-icon" });
-		setIcon(iconEl, hasRag ? "folder-open" : "folder-x");
+		setIcon(iconEl, hasRag ? "library-big" : "library");
 		leading.createEl("span", {
 			cls: `lecture-lens-chat-scope-badge ${hasRag ? "is-on" : "is-off"}`,
 			text: hasRag ? this.plugin.tr("chat.ragStatusOn") : this.plugin.tr("chat.ragStatusOff"),
@@ -987,7 +981,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.insertAtCursor"),
 			},
 		});
-		setIcon(insertBtn, "text-cursor-input");
+		setIcon(insertBtn, "text-cursor");
 		insertBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "cursor"));
 
 		const appendBtn = actions.createEl("button", {
@@ -997,7 +991,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.appendToNote"),
 			},
 		});
-		setIcon(appendBtn, "arrow-down-to-line");
+		setIcon(appendBtn, "corner-down-left");
 		appendBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "end"));
 
 		const replaceBtn = actions.createEl("button", {
@@ -1007,7 +1001,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.replaceSelection"),
 			},
 		});
-		setIcon(replaceBtn, "replace");
+		setIcon(replaceBtn, "arrow-left-right");
 		replaceBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "selection"));
 
 		const applyBtn = actions.createEl("button", {
@@ -1017,7 +1011,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.applyToNote"),
 			},
 		});
-		setIcon(applyBtn, "file-pen-line");
+		setIcon(applyBtn, "notebook-pen");
 		applyBtn.addEventListener("click", () => this.applyMessageToNote(content));
 	}
 

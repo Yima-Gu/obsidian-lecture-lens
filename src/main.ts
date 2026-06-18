@@ -28,6 +28,7 @@ import {
 	fetchRemoteModels,
 	findRemoteModel,
 	isModelCatalogStale,
+	resolveChatTemperature,
 } from "./services/modelCatalogService";
 import { RemoteModelInfo } from "./types/remoteModel";
 import { providerSupportsRemoteModelList, modelSupportsVisionApi } from "./constants/providers";
@@ -456,9 +457,11 @@ export default class LectureLensPlugin extends Plugin {
 		const previous = this.getDefaultLlmProfile();
 		this.applyLlmProfile(profile);
 		try {
+			const remote = findRemoteModel(profile.remoteModels, profile.modelName);
+			const temperature = resolveChatTemperature(profile.apiProvider, profile.modelName, remote);
 			const response = await this.llmService.chatCompletion(
 				[{ role: "user", content: "Hello! Please respond with 'OK' to confirm connection." }],
-				{ max_tokens: 10, temperature: 0 }
+				{ max_tokens: 10, temperature }
 			);
 			if (providerSupportsRemoteModelList(profile.apiProvider)) {
 				try {

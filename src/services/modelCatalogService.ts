@@ -29,6 +29,13 @@ function enrichModelFromId(model: RemoteModelInfo, provider: ApiProvider): Remot
 				model.supportsReasoning ?? (name.includes("reasoner") || name.includes("r1")),
 		};
 	}
+	if (provider === "Kimi") {
+		return {
+			...model,
+			supportsReasoning:
+				model.supportsReasoning ?? (name.includes("kimi-k2") || /^k2[.-]/.test(name)),
+		};
+	}
 	return model;
 }
 
@@ -116,4 +123,35 @@ export function findRemoteModel(
 	modelId: string
 ): RemoteModelInfo | undefined {
 	return models?.find((model) => model.id === modelId);
+}
+
+const DEFAULT_CHAT_TEMPERATURE = 0.7;
+
+/** Some Kimi/DeepSeek reasoning models reject any temperature other than 1. */
+export function resolveChatTemperature(
+	provider: ApiProvider,
+	modelName: string,
+	remoteModel?: RemoteModelInfo,
+	defaultTemperature = DEFAULT_CHAT_TEMPERATURE
+): number {
+	const name = modelName.trim().toLowerCase();
+	if (!name) return defaultTemperature;
+
+	if (provider === "Kimi") {
+		if (
+			remoteModel?.supportsReasoning ||
+			name.includes("kimi-k2") ||
+			/^k2[.-]/.test(name)
+		) {
+			return 1;
+		}
+	}
+
+	if (provider === "DeepSeek") {
+		if (remoteModel?.supportsReasoning || name.includes("reasoner") || name.includes("r1")) {
+			return 1;
+		}
+	}
+
+	return defaultTemperature;
 }

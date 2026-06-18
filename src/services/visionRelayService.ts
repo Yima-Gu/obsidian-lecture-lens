@@ -1,6 +1,7 @@
 import { LLMService, LLMServiceConfig } from "./llm";
 import { LlmProfile } from "../types/llmProfile";
 import { DEFAULT_CHAT_MAX_TOKENS } from "../constants/chatAppearance";
+import { findRemoteModel, resolveChatTemperature } from "./modelCatalogService";
 
 const VISION_EXTRACTION_SYSTEM_PROMPT = `You are a vision analysis assistant. Your output will be passed to a text-only AI that cannot see images.
 
@@ -46,12 +47,19 @@ export class VisionRelayService {
 			);
 
 			let description = "";
+			const remote = findRemoteModel(visionProfile.remoteModels, visionProfile.modelName);
+			const temperature = resolveChatTemperature(
+				visionProfile.apiProvider,
+				visionProfile.modelName,
+				remote,
+				0.2
+			);
 			for await (const chunk of this.llmService.chatCompletionStream(
 				[
 					LLMService.createTextMessage("system", VISION_EXTRACTION_SYSTEM_PROMPT),
 					userMessage,
 				],
-				{ temperature: 0.2, max_tokens: DEFAULT_CHAT_MAX_TOKENS }
+				{ temperature, max_tokens: DEFAULT_CHAT_MAX_TOKENS }
 			)) {
 				description += chunk;
 				onChunk?.(chunk, description);

@@ -13,7 +13,7 @@ import {
 	isVisionApiError,
 	providerSupportsRemoteModelList,
 } from "../constants/providers";
-import { formatRemoteModelLabel, findRemoteModel } from "../services/modelCatalogService";
+import { formatRemoteModelLabel, findRemoteModel, resolveChatTemperature } from "../services/modelCatalogService";
 import { resolveLocale } from "../i18n";
 import {
 	ChatSession,
@@ -1327,8 +1327,15 @@ export class ChatView extends ItemView {
 		);
 
 		try {
+			const profile = this.getCurrentProfile();
+			const remote = findRemoteModel(profile.remoteModels, this.getEffectiveModelName());
+			const temperature = resolveChatTemperature(
+				profile.apiProvider,
+				this.getEffectiveModelName(),
+				remote
+			);
 			for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
-				temperature: 0.7,
+				temperature,
 				max_tokens: DEFAULT_CHAT_MAX_TOKENS,
 			})) {
 				fullResponse += chunk;

@@ -45,6 +45,13 @@ export const en = {
 	"settings.testConnection.errorTimeout": "❌ Request timed out. Try again later.",
 	"settings.testConnection.errorNetwork": "❌ Network error: check your connection.",
 	"settings.testConnection.errorGeneric": "❌ Connection error: {{message}}... (see console for details)",
+	"settings.refreshModels.name": "Refresh model list",
+	"settings.refreshModels.desc":
+		"Fetch available models from Kimi (GET /v1/models) or DeepSeek (GET /models).",
+	"settings.refreshModels.button": "Refresh models",
+	"settings.refreshModels.loading": "Fetching…",
+	"settings.refreshModels.success": "Loaded {{count}} models.",
+	"settings.refreshModels.failed": "Failed to load models: {{message}}",
 
 	"settings.common.placeholderBaseUrl": "https://api.openai.com/v1",
 	"settings.common.placeholderApiKey": "sk-...",
@@ -422,6 +429,8 @@ export const en = {
 	"notice.testingLlm": "Testing language model connection...",
 	"notice.llmSuccess": "✅ LLM connection successful!\nModel: {{model}}\nResponse: {{message}}",
 	"notice.llmFailed": "❌ LLM connection failed:\n{{message}}",
+	"notice.modelsFetched": "Loaded {{count}} models.",
+	"notice.llmProfileMissingKey": "API key is required to list models.",
 	"notice.noResponse": "No response",
 
 	// Notices — PDF notes

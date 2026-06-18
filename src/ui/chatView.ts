@@ -11,7 +11,9 @@ import {
 	getChatModelsForProvider,
 	getProviderDropdownOptions,
 	isVisionApiError,
+	providerSupportsRemoteModelList,
 } from "../constants/providers";
+import { formatRemoteModelLabel, findRemoteModel } from "../services/modelCatalogService";
 import { resolveLocale } from "../i18n";
 import {
 	ChatSession,
@@ -440,32 +442,44 @@ export class ChatView extends ItemView {
 			(key) => this.plugin.tr(key),
 			locale
 		);
-		const currentProvider = this.getCurrentProfile().apiProvider;
+		const profile = this.getCurrentProfile();
+		const currentProvider = profile.apiProvider;
 
 		this.providerSelectEl.empty();
 		const seenProviders = new Set<ApiProvider>();
-		for (const profile of this.plugin.settings.llmProfiles) {
-			if (seenProviders.has(profile.apiProvider)) continue;
-			seenProviders.add(profile.apiProvider);
-			const label = providerLabels[profile.apiProvider] ?? profile.name ?? profile.apiProvider;
+		for (const item of this.plugin.settings.llmProfiles) {
+			if (seenProviders.has(item.apiProvider)) continue;
+			seenProviders.add(item.apiProvider);
+			const label = providerLabels[item.apiProvider] ?? item.name ?? item.apiProvider;
 			const option = this.providerSelectEl.createEl("option", {
-				value: profile.apiProvider,
+				value: item.apiProvider,
 				text: label,
 			});
-			if (profile.apiProvider === currentProvider) {
+			if (item.apiProvider === currentProvider) {
 				option.selected = true;
 			}
 		}
 
+		let remoteModels = profile.remoteModels;
+		if (providerSupportsRemoteModelList(currentProvider)) {
+			remoteModels = await this.plugin.ensureProfileRemoteModels(profile);
+		}
+
 		this.modelSelectEl.empty();
-		const models = getChatModelsForProvider(currentProvider, this.getEffectiveModelName());
+		const models = getChatModelsForProvider(
+			currentProvider,
+			this.getEffectiveModelName(),
+			remoteModels
+		);
 		if (models.length === 0) {
 			const model = this.getEffectiveModelName();
 			this.modelSelectEl.createEl("option", { value: model, text: model });
 		} else {
-			for (const model of models) {
-				const option = this.modelSelectEl.createEl("option", { value: model, text: model });
-				if (model === this.getEffectiveModelName()) {
+			for (const modelId of models) {
+				const remote = findRemoteModel(remoteModels, modelId);
+				const label = remote ? formatRemoteModelLabel(remote) : modelId;
+				const option = this.modelSelectEl.createEl("option", { value: modelId, text: label });
+				if (modelId === this.getEffectiveModelName()) {
 					option.selected = true;
 				}
 			}
@@ -493,13 +507,19 @@ export class ChatView extends ItemView {
 		this.currentProfileId = profile.id;
 		this.currentModelName = profile.modelName;
 		this.applySessionModel();
-		await this.refreshModelSelectors();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			void this.plugin.ensureProfileRemoteModels(profile).then(() => this.refreshModelSelectors());
+		} else {
+			await this.refreshModelSelectors();
+		}
 		await this.persistCurrentSession();
 	}
 
 	private async handleModelChange(modelName: string): Promise<void> {
 		if (!modelName || modelName === this.getEffectiveModelName()) return;
 		this.currentModelName = modelName;
+		const profile = this.getCurrentProfile();
+		this.plugin.applyRemoteModelCapabilities(profile, modelName);
 		this.applySessionModel();
 		await this.persistCurrentSession();
 	}

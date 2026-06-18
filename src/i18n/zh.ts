@@ -46,6 +46,13 @@ export const zh: Record<TranslationKey, string> = {
 	"settings.testConnection.errorTimeout": "❌ 请求超时：网络不稳定，请稍后重试。",
 	"settings.testConnection.errorNetwork": "❌ 网络错误：请检查网络连接。",
 	"settings.testConnection.errorGeneric": "❌ 连接错误：{{message}}...（请查看控制台详情）",
+	"settings.refreshModels.name": "刷新模型列表",
+	"settings.refreshModels.desc":
+		"从 Kimi（GET /v1/models）或 DeepSeek（GET /models）拉取可用模型列表。",
+	"settings.refreshModels.button": "刷新模型",
+	"settings.refreshModels.loading": "拉取中…",
+	"settings.refreshModels.success": "已加载 {{count}} 个模型。",
+	"settings.refreshModels.failed": "加载模型失败：{{message}}",
 
 	"settings.common.placeholderBaseUrl": "https://api.openai.com/v1",
 	"settings.common.placeholderApiKey": "sk-...",
@@ -405,6 +412,8 @@ export const zh: Record<TranslationKey, string> = {
 	"notice.testingLlm": "正在测试语言模型连接...",
 	"notice.llmSuccess": "✅ LLM 连接成功！\n模型：{{model}}\n响应：{{message}}",
 	"notice.llmFailed": "❌ LLM 连接失败：\n{{message}}",
+	"notice.modelsFetched": "已加载 {{count}} 个模型。",
+	"notice.llmProfileMissingKey": "列出模型需要填写 API Key。",
 	"notice.noResponse": "无响应",
 
 	"notice.pdfNotesNoApiKey": "请先在设置中配置带 API 密钥的默认 LLM 配置，再生成 PDF 笔记。",

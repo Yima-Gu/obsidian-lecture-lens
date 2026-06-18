@@ -1,5 +1,6 @@
 import { applyProviderPreset, PROVIDER_PRESETS } from "../constants/providers";
 import { ApiProvider } from "../settings";
+import { RemoteModelInfo } from "../types/remoteModel";
 
 export interface LlmProfile {
 	id: string;
@@ -9,6 +10,9 @@ export interface LlmProfile {
 	baseUrl: string;
 	modelName: string;
 	supportsVision: boolean;
+	/** Cached from GET /models (Kimi, DeepSeek). */
+	remoteModels?: RemoteModelInfo[];
+	remoteModelsFetchedAt?: number;
 }
 
 export function generateProfileId(): string {

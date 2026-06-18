@@ -24,6 +24,13 @@ import { EmbeddingModelStatusService } from "./services/embeddingModelStatus";
 import { ChatHistoryService } from "./services/chatHistoryService";
 import { VisionRelayService } from "./services/visionRelayService";
 import { configurePdfWorker, releasePdfWorker } from "./services/pdfDocumentService";
+import {
+	fetchRemoteModels,
+	findRemoteModel,
+	isModelCatalogStale,
+} from "./services/modelCatalogService";
+import { RemoteModelInfo } from "./types/remoteModel";
+import { providerSupportsRemoteModelList, modelSupportsVisionApi } from "./constants/providers";
 import { runPdfNotesPipeline } from "./features/pdfNotes/pdfNotesPipeline";
 import {
 	findProfileById,
@@ -39,7 +46,6 @@ import {
 import { hasCourseFolderInput } from "./utils/vaultPath";
 import { clampChatMessageFontSize } from "./constants/chatAppearance";
 import { CHAT_VIEW_TYPE } from "./constants";
-import { modelSupportsVisionApi } from "./constants/providers";
 import { activateChatView, ChatView, registerChatView } from "./ui/chatView";
 import { PdfMultiSelectModal } from "./ui/pdfMultiSelectModal";
 import { PdfNotesOptionsModal } from "./ui/pdfNotesOptionsModal";
@@ -454,6 +460,14 @@ export default class LectureLensPlugin extends Plugin {
 				[{ role: "user", content: "Hello! Please respond with 'OK' to confirm connection." }],
 				{ max_tokens: 10, temperature: 0 }
 			);
+			if (providerSupportsRemoteModelList(profile.apiProvider)) {
+				try {
+					const count = await this.refreshProfileRemoteModels(profile, { force: true });
+					new Notice(this.tr("notice.modelsFetched", { count }), 4000);
+				} catch (error) {
+					console.warn("[Lecture Lens] Failed to fetch remote model list:", error);
+				}
+			}
 			testNotice.hide();
 			const messageContent = response.choices[0]?.message?.content;
 			const message =
@@ -464,6 +478,64 @@ export default class LectureLensPlugin extends Plugin {
 			new Notice(this.tr("notice.llmFailed", { message: this.formatError(error) }), 8000);
 		} finally {
 			this.applyLlmProfile(previous);
+		}
+	}
+
+	/** Fetch available models via GET /models (Kimi, DeepSeek). Cached for 24h unless forced. */
+	async refreshProfileRemoteModels(
+		profile: LlmProfile,
+		options?: { force?: boolean }
+	): Promise<number> {
+		if (!providerSupportsRemoteModelList(profile.apiProvider)) {
+			return profile.remoteModels?.length ?? 0;
+		}
+		if (!profile.apiKey.trim()) {
+			throw new LLMServiceError(this.tr("notice.llmProfileMissingKey"));
+		}
+		if (
+			!options?.force &&
+			profile.remoteModels?.length &&
+			!isModelCatalogStale(profile.remoteModelsFetchedAt)
+		) {
+			return profile.remoteModels.length;
+		}
+
+		const models = await fetchRemoteModels(profile.apiKey, profile.baseUrl, profile.apiProvider);
+		profile.remoteModels = models;
+		profile.remoteModelsFetchedAt = Date.now();
+		this.applyRemoteModelCapabilities(profile, profile.modelName);
+		this.syncLegacyApiFieldsFromDefaultProfile();
+		await this.saveSettings();
+		return models.length;
+	}
+
+	async ensureProfileRemoteModels(profile: LlmProfile): Promise<RemoteModelInfo[]> {
+		if (!providerSupportsRemoteModelList(profile.apiProvider) || !profile.apiKey.trim()) {
+			return profile.remoteModels ?? [];
+		}
+		if (profile.remoteModels?.length && !isModelCatalogStale(profile.remoteModelsFetchedAt)) {
+			return profile.remoteModels;
+		}
+		try {
+			await this.refreshProfileRemoteModels(profile);
+		} catch (error) {
+			console.warn("[Lecture Lens] Failed to fetch remote model list:", error);
+		}
+		return profile.remoteModels ?? [];
+	}
+
+	applyRemoteModelCapabilities(profile: LlmProfile, modelName: string): void {
+		if (profile.apiProvider === "DeepSeek") {
+			profile.supportsVision = false;
+			return;
+		}
+		const remote = findRemoteModel(profile.remoteModels, modelName);
+		if (remote?.supportsImageIn !== undefined) {
+			profile.supportsVision = remote.supportsImageIn;
+			return;
+		}
+		if (modelSupportsVisionApi(profile.apiProvider, modelName, true)) {
+			profile.supportsVision = true;
 		}
 	}
 

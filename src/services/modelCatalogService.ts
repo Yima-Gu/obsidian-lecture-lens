@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import { ApiProvider } from "../settings";
+import { ModelContextPolicy } from "../types/modelContextPolicy";
 import { RemoteModelInfo, RemoteModelListResponse } from "../types/remoteModel";
 import { LLMServiceError } from "./llm";
 
@@ -138,20 +139,99 @@ export function resolveChatTemperature(
 	if (!name) return defaultTemperature;
 
 	if (provider === "Kimi") {
-		if (
-			remoteModel?.supportsReasoning ||
-			name.includes("kimi-k2") ||
-			/^k2[.-]/.test(name)
-		) {
+		if (isReasoningModel(provider, modelName, remoteModel)) {
 			return 1;
 		}
 	}
 
 	if (provider === "DeepSeek") {
-		if (remoteModel?.supportsReasoning || name.includes("reasoner") || name.includes("r1")) {
+		if (isReasoningModel(provider, modelName, remoteModel)) {
 			return 1;
 		}
 	}
 
 	return defaultTemperature;
+}
+
+const OUTPUT_RESERVE_RATIO = 0.15;
+const CHARS_PER_TOKEN_ESTIMATE = 2;
+
+function isReasoningModel(
+	provider: ApiProvider,
+	modelName: string,
+	remoteModel?: RemoteModelInfo
+): boolean {
+	if (remoteModel?.supportsReasoning) return true;
+	const name = modelName.trim().toLowerCase();
+	if (provider === "Kimi") return name.includes("kimi-k2") || /^k2[.-]/.test(name);
+	if (provider === "DeepSeek") return name.includes("reasoner") || name.includes("r1");
+	return false;
+}
+
+/** Infer context window (tokens) when the provider omits context_length. */
+export function inferContextLengthTokens(
+	provider: ApiProvider,
+	modelName: string,
+	remoteModel?: RemoteModelInfo
+): number {
+	if (remoteModel?.contextLength && remoteModel.contextLength > 0) {
+		return remoteModel.contextLength;
+	}
+
+	const name = modelName.trim().toLowerCase();
+	const sizedMatch = name.match(/(?:^|[-._/])(\d+(?:\.\d+)?)\s*k(?:[-_.]|$)/);
+	if (sizedMatch) {
+		return Math.round(parseFloat(sizedMatch[1]!) * 1000);
+	}
+	if (name.includes("128k")) return 128_000;
+	if (name.includes("32k")) return 32_000;
+	if (name.includes("8k")) return 8_192;
+
+	if (provider === "DeepSeek") return 64_000;
+	if (provider === "Kimi") return 32_768;
+	if (provider === "OpenAI" && name.includes("gpt-4o")) return 128_000;
+	return 32_000;
+}
+
+export function resolveModelContextPolicy(
+	provider: ApiProvider,
+	modelName: string,
+	remoteModel?: RemoteModelInfo
+): ModelContextPolicy {
+	const contextTokens = inferContextLengthTokens(provider, modelName, remoteModel);
+	const budgetChars = Math.max(
+		8_000,
+		Math.floor(contextTokens * CHARS_PER_TOKEN_ESTIMATE * (1 - OUTPUT_RESERVE_RATIO))
+	);
+
+	let historyTurnLimit: number;
+	let ragTopK: number;
+	let maxNoteContextChars: number;
+
+	if (contextTokens >= 128_000) {
+		historyTurnLimit = 20;
+		ragTopK = 8;
+		maxNoteContextChars = 12_000;
+	} else if (contextTokens >= 16_000) {
+		historyTurnLimit = 10;
+		ragTopK = 5;
+		maxNoteContextChars = 6_000;
+	} else {
+		historyTurnLimit = 4;
+		ragTopK = 2;
+		maxNoteContextChars = 3_000;
+	}
+
+	if (isReasoningModel(provider, modelName, remoteModel)) {
+		historyTurnLimit = Math.max(4, historyTurnLimit - 2);
+		ragTopK = Math.max(2, ragTopK - 1);
+	}
+
+	return {
+		contextTokens,
+		budgetChars,
+		historyTurnLimit,
+		ragTopK,
+		maxNoteContextChars,
+	};
 }

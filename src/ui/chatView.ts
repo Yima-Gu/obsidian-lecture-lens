@@ -418,6 +418,12 @@ export class ChatView extends ItemView {
 		const profile = this.plugin.getLlmProfile(session.profileId);
 		this.currentModelName = session.modelName?.trim() || profile.modelName;
 		this.applySessionModel();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, this.getEffectiveModelName(), {
+			save: false,
+		});
 		await this.loadSessionIntoView(session);
 		await this.refreshModelSelectors();
 		await this.refreshSessionSelect();
@@ -508,20 +514,25 @@ export class ChatView extends ItemView {
 		this.currentModelName = profile.modelName;
 		this.applySessionModel();
 		if (providerSupportsRemoteModelList(profile.apiProvider)) {
-			void this.plugin.ensureProfileRemoteModels(profile).then(() => this.refreshModelSelectors());
-		} else {
-			await this.refreshModelSelectors();
+			await this.plugin.ensureProfileRemoteModels(profile);
 		}
+		await this.plugin.applyModelProfileSettings(profile, profile.modelName);
+		await this.refreshModelSelectors();
 		await this.persistCurrentSession();
+		void this.refreshContextPreview();
 	}
 
 	private async handleModelChange(modelName: string): Promise<void> {
 		if (!modelName || modelName === this.getEffectiveModelName()) return;
 		this.currentModelName = modelName;
 		const profile = this.getCurrentProfile();
-		this.plugin.applyRemoteModelCapabilities(profile, modelName);
 		this.applySessionModel();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, modelName);
 		await this.persistCurrentSession();
+		void this.refreshContextPreview();
 	}
 
 	private openRenameSessionModal(): void {
@@ -557,9 +568,16 @@ export class ChatView extends ItemView {
 		this.currentModelName = session.modelName?.trim() || profile.modelName;
 		this.applySessionModel();
 		await this.plugin.chatHistoryService.setActiveSessionId(sessionId);
-		await this.refreshModelSelectors();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, this.getEffectiveModelName(), {
+			save: false,
+		});
 		await this.loadSessionIntoView(session);
+		await this.refreshModelSelectors();
 		await this.refreshSessionSelect();
+		void this.refreshContextPreview();
 	}
 
 	private async startNewChat(): Promise<void> {
@@ -1260,7 +1278,6 @@ export class ChatView extends ItemView {
 
 			const enhancedResponse = enhanceAssistantCitations(
 				fullResponse,
-				this.getContextFiles(),
 				snapshot.notes,
 				snapshot.ragChunks,
 				this.plugin.tr("chat.citationSourcesHeading")
@@ -1302,6 +1319,9 @@ export class ChatView extends ItemView {
 
 	private getContextFiles(): TFile[] {
 		if (!this.sessionIncludeNotes) return [];
+		this.attachedFiles = this.attachedFiles.filter(
+			(file) => this.app.vault.getAbstractFileByPath(file.path) instanceof TFile
+		);
 		const activeFile = this.app.workspace.getActiveFile();
 		const current = this.includeCurrentNote && activeFile?.extension === "md" ? activeFile : null;
 		return this.plugin.noteContextService.dedupeFiles([current, ...this.attachedFiles]);

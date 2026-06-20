@@ -630,6 +630,7 @@ If your plugin does not need CSS, delete this file.
 	--ll-context-notes: color-mix(in srgb, var(--color-green) 55%, var(--interactive-accent));
 	--ll-context-rag: color-mix(in srgb, var(--interactive-accent) 75%, #8b5cf6);
 	--ll-context-history: color-mix(in srgb, var(--color-blue) 55%, var(--interactive-accent));
+	--ll-context-user: color-mix(in srgb, var(--color-orange) 50%, var(--interactive-accent));
 	--ll-accent-soft: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
 	--ll-accent-border: color-mix(in srgb, var(--interactive-accent) 22%, var(--background-modifier-border));
 	--ll-surface-elevated: color-mix(in srgb, var(--background-secondary) 92%, var(--background-primary));
@@ -2208,6 +2209,14 @@ If your plugin does not need CSS, delete this file.
 	box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-warning, #d29922) 35%, transparent);
 }
 
+.lecture-lens-chat-context-budget-bar.is-over .lecture-lens-chat-context-budget-fill {
+	opacity: 1;
+}
+
+.lecture-lens-chat-context-budget-bar.is-over {
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-error, #f85149) 45%, transparent);
+}
+
 .lecture-lens-chat-context-budget-fill {
 	display: flex;
 	height: 100%;
@@ -2225,6 +2234,27 @@ If your plugin does not need CSS, delete this file.
 .lecture-lens-chat-context-stat-line {
 	font-size: 0.68rem;
 	color: var(--text-faint);
+}
+
+.lecture-lens-chat-context-trim-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.lecture-lens-chat-context-trim-hint {
+	display: block;
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	line-height: 1.35;
+}
+
+.lecture-lens-chat-context-trim-hint.is-warning {
+	color: var(--text-warning, #d29922);
+}
+
+.lecture-lens-chat-context-trim-hint.is-over {
+	color: var(--text-error, #f85149);
 }
 
 .lecture-lens-chat-context-source-group {

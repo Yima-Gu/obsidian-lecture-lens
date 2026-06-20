@@ -204,9 +204,10 @@ function renderProfileDetails(
 		.addText((text) =>
 			text.setValue(profile.modelName).onChange(async (value) => {
 				profile.modelName = value.trim();
-				plugin.applyRemoteModelCapabilities(profile, profile.modelName);
-				plugin.syncLegacyApiFieldsFromDefaultProfile();
-				await plugin.saveSettings();
+				void plugin.applyModelProfileSettings(profile, profile.modelName).then(() => {
+					plugin.syncLegacyApiFieldsFromDefaultProfile();
+					rerender();
+				});
 			})
 		);
 
@@ -231,9 +232,7 @@ function renderProfileDetails(
 					.setValue(modelOptions.includes(profile.modelName) ? profile.modelName : modelOptions[0]!)
 					.onChange(async (value) => {
 						profile.modelName = value;
-						plugin.applyRemoteModelCapabilities(profile, value);
-						plugin.syncLegacyApiFieldsFromDefaultProfile();
-						await plugin.saveSettings();
+						await plugin.applyModelProfileSettings(profile, value);
 						rerender();
 					});
 			});
@@ -246,9 +245,7 @@ function renderProfileDetails(
 					.setValue(staticModels.includes(profile.modelName) ? profile.modelName : staticModels[0]!)
 					.onChange(async (value) => {
 						profile.modelName = value;
-						plugin.applyRemoteModelCapabilities(profile, value);
-						plugin.syncLegacyApiFieldsFromDefaultProfile();
-						await plugin.saveSettings();
+						await plugin.applyModelProfileSettings(profile, value);
 						rerender();
 					});
 			});

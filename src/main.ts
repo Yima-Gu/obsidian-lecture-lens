@@ -29,7 +29,9 @@ import {
 	findRemoteModel,
 	isModelCatalogStale,
 	resolveChatTemperature,
+	resolveModelContextPolicy,
 } from "./services/modelCatalogService";
+import { ModelContextPolicy } from "./types/modelContextPolicy";
 import { RemoteModelInfo } from "./types/remoteModel";
 import { providerSupportsRemoteModelList, modelSupportsVisionApi } from "./constants/providers";
 import { runPdfNotesPipeline } from "./features/pdfNotes/pdfNotesPipeline";
@@ -506,7 +508,7 @@ export default class LectureLensPlugin extends Plugin {
 		const models = await fetchRemoteModels(profile.apiKey, profile.baseUrl, profile.apiProvider);
 		profile.remoteModels = models;
 		profile.remoteModelsFetchedAt = Date.now();
-		this.applyRemoteModelCapabilities(profile, profile.modelName);
+		await this.applyModelProfileSettings(profile, profile.modelName, { save: false });
 		this.syncLegacyApiFieldsFromDefaultProfile();
 		await this.saveSettings();
 		return models.length;
@@ -540,6 +542,30 @@ export default class LectureLensPlugin extends Plugin {
 		if (modelSupportsVisionApi(profile.apiProvider, modelName, true)) {
 			profile.supportsVision = true;
 		}
+	}
+
+	/** Apply vision flags and context budget/history/RAG limits for the active model. */
+	async applyModelProfileSettings(
+		profile: LlmProfile,
+		modelName: string,
+		options?: { save?: boolean }
+	): Promise<ModelContextPolicy> {
+		this.applyRemoteModelCapabilities(profile, modelName);
+		const remote = findRemoteModel(profile.remoteModels, modelName);
+		const policy = resolveModelContextPolicy(profile.apiProvider, modelName.trim(), remote);
+
+		this.settings.chatContextBudgetChars = policy.budgetChars;
+		this.settings.chatHistoryTurnLimit = policy.historyTurnLimit;
+		this.settings.ragTopK = policy.ragTopK;
+		this.settings.maxNoteContextChars = policy.maxNoteContextChars;
+
+		this.syncLegacyApiFieldsFromDefaultProfile();
+
+		if (options?.save !== false) {
+			await this.saveSettings();
+		}
+
+		return policy;
 	}
 
 	getEmbeddingRuntimeConfig(): EmbeddingRuntimeConfig {

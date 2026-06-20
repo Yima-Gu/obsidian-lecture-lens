@@ -11,11 +11,33 @@ Release assets and full diffs: [GitHub Releases](https://github.com/Yima-Gu/obsi
 
 ## [Unreleased]
 
+---
+
+## [1.1.4] — 2026-06-14
+
+**Minimum Obsidian version:** 1.8.7
+
 ### Added
 
+- **Chat context:** Budget-aware allocation for attached notes, RAG excerpts, and conversation history (fills from newest turns until the character budget is used)
+- **Chat context:** Model-aware defaults — switching provider/model adjusts context budget, history turn limit, and RAG top-K from `context_length` when available
+- **Chat context panel:** Trim hints (omitted history turns, dropped RAG chunks, budget warnings) and current-message segment in the budget bar
+- **Providers:** Kimi and DeepSeek model lists fetched from provider APIs (24h cache per profile)
 - Obsidian wiki links for attached notes and RAG sources in chat context panel and composer chips
 - Inline source citations in assistant replies (`[[Note#Section]]`), with post-processing for numbered refs and a fallback **Sources / 参考来源** block
-- Clickable internal links in rendered chat Markdown
+
+### Fixed
+
+- **Citations:** Assistant replies no longer repeat unrelated or deleted note links from earlier turns; only sources in the **current** request are kept
+- **Citations:** Source footers appended to history are stripped before the next LLM request
+- **Providers:** Kimi k2 / DeepSeek reasoning models use `temperature: 1` (API requirement)
+
+### Changed
+
+- **Chat UI:** Cursor-style composer, simplified context panel, unified icons
+- **README / manifest:** Improved discoverability for Obsidian Community Plugins search
+
+[1.1.4]: https://github.com/Yima-Gu/obsidian-lecture-lens/releases/tag/1.1.4
 
 ---
 

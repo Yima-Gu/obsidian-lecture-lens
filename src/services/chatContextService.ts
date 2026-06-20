@@ -8,13 +8,19 @@ import { LectureLensSettings } from "../settings";
 import { EmbeddingRuntimeConfig } from "./embeddingConfig";
 import { hasCourseFolderInput } from "../utils/vaultPath";
 import { previewText } from "../utils/contextBudget";
-import { buildCitationSystemBlock } from "../utils/citationLinks";
+import { buildCitationSystemBlock, collectAllowedWikiLinks, sanitizeAssistantHistoryContent } from "../utils/citationLinks";
 import {
 	ChatContextSnapshot,
 	ChatTurnInput,
 	ContextBudgetSegment,
-	HistoryContextPart,
 } from "../types/chatContext";
+import {
+	buildHistoryWithinBudget,
+	computePerFileNoteLimit,
+	estimateCitationBlockChars,
+	resolveEffectiveUserChars,
+	trimRagChunksToBudget,
+} from "./contextAllocator";
 
 const BASE_SYSTEM_PROMPT_PARTS = [
 	"You are Lecture Lens, an AI study assistant for course review.",
@@ -25,6 +31,11 @@ const BASE_SYSTEM_PROMPT_PARTS = [
 	"When the user asks to edit or update their note, prefer SEARCH/REPLACE blocks so changes can be applied automatically:\n<<<<<<< SEARCH\nexact existing text\n=======\nreplacement text\n>>>>>>> REPLACE",
 	"For new content to insert, wrap the markdown in a ```markdown fenced block when possible.",
 ];
+
+const NOTES_BLOCK_PREFIX = "The user attached the following vault notes as context:\n\n";
+const RAG_BLOCK_PREFIX = "Relevant excerpts retrieved from the indexed course folder:\n\n";
+const NOTES_BUDGET_RATIO = 0.38;
+const RAG_BUDGET_RATIO = 0.32;
 
 export interface BuildChatContextOptions {
 	settings: LectureLensSettings;
@@ -46,38 +57,6 @@ export interface BuildChatContextOptions {
 export interface BuildChatContextResult {
 	messages: ChatMessage[];
 	snapshot: ChatContextSnapshot;
-}
-
-function estimateTurnChars(turn: ChatTurnInput, imageOmittedSuffix = 0): number {
-	let chars = turn.content.length;
-	if (turn.imageDescription) {
-		chars += turn.imageDescription.length + 80;
-	} else if (turn.images?.length) {
-		chars += imageOmittedSuffix;
-	}
-	return chars;
-}
-
-function buildHistoryParts(
-	history: ChatTurnInput[],
-	limit: number,
-	imageOmittedLabel: string
-): { parts: HistoryContextPart[]; included: ChatTurnInput[]; chars: number } {
-	const included = history.slice(-limit);
-	const parts: HistoryContextPart[] = [];
-	let chars = 0;
-	for (const turn of included) {
-		const partChars = estimateTurnChars(turn, imageOmittedLabel.length + 4);
-		chars += partChars;
-		parts.push({
-			role: turn.role,
-			preview: previewText(turn.content, 56),
-			chars: partChars,
-			hasImages: Boolean(turn.images?.length),
-			hasImageDescription: Boolean(turn.imageDescription),
-		});
-	}
-	return { parts, included, chars };
 }
 
 function filterRagChunks(
@@ -113,27 +92,42 @@ export async function buildChatContext(
 	const segments: ContextBudgetSegment[] = [];
 
 	const baseSystemChars = BASE_SYSTEM_PROMPT_PARTS.join("\n\n").length;
-	segments.push({
-		id: "system",
-		labelKey: "chat.contextSegment.system",
-		chars: baseSystemChars,
-		colorVar: "--ll-context-system",
-	});
+	const budgetChars = settings.chatContextBudgetChars;
+	const effectiveUserChars = resolveEffectiveUserChars(history, userText);
+	const noteFileCount = includeNotes ? contextFiles.length : 0;
+
+	const citationEstimate = estimateCitationBlockChars(
+		noteFileCount + (includeRag ? settings.ragTopK : 0)
+	);
+
+	let remainingAfterCore = Math.max(
+		0,
+		budgetChars - baseSystemChars - effectiveUserChars - citationEstimate
+	);
+
+	let perFileNoteLimit = settings.maxNoteContextChars;
+	if (noteFileCount > 0) {
+		const noteBudget = Math.min(
+			settings.maxNoteContextChars * noteFileCount,
+			Math.floor(remainingAfterCore * NOTES_BUDGET_RATIO)
+		);
+		perFileNoteLimit = computePerFileNoteLimit(
+			noteFileCount,
+			noteBudget,
+			settings.maxNoteContextChars
+		);
+	}
 
 	let notesChars = 0;
 	let noteParts = await noteContextService.buildContextParts(
 		includeNotes ? contextFiles : [],
-		settings.maxNoteContextChars
+		perFileNoteLimit
 	);
-	notesChars = noteParts.reduce((sum, part) => sum + part.usedChars, 0);
 
 	if (includeNotes && contextFiles.length > 0) {
-		const noteContext = await noteContextService.buildContext(
-			contextFiles,
-			settings.maxNoteContextChars
-		);
-		systemParts.push("The user attached the following vault notes as context:\n\n" + noteContext);
-		notesChars = noteContext.length;
+		const noteContext = await noteContextService.buildContext(contextFiles, perFileNoteLimit);
+		systemParts.push(NOTES_BLOCK_PREFIX + noteContext);
+		notesChars = NOTES_BLOCK_PREFIX.length + noteContext.length;
 		segments.push({
 			id: "notes",
 			labelKey: "chat.contextSegment.notes",
@@ -144,9 +138,17 @@ export async function buildChatContext(
 		noteParts = [];
 	}
 
+	remainingAfterCore = Math.max(
+		0,
+		budgetChars - baseSystemChars - effectiveUserChars - notesChars - citationEstimate
+	);
+	const ragBudget = includeRag ? Math.floor(remainingAfterCore * RAG_BUDGET_RATIO) : 0;
+
 	let ragChunks: RetrievedChunk[] = [];
 	let ragIssue: RagRetrieveResult["issue"];
 	let ragFilteredCount = 0;
+	let ragBudgetDropped = 0;
+	let ragTruncatedLast = false;
 	let ragChars = 0;
 
 	if (includeRag && settings.ragEnabled && hasCourseFolderInput(settings.courseFolderPath)) {
@@ -166,14 +168,19 @@ export async function buildChatContext(
 					if (issueMessage) systemParts.push(issueMessage);
 				} else {
 					const filtered = filterRagChunks(result.chunks, settings.chatRagMinScore);
-					ragChunks = filtered.kept;
 					ragFilteredCount = filtered.filtered;
+					const trimmed = trimRagChunksToBudget(
+						filtered.kept,
+						Math.max(0, ragBudget),
+						(chunks) => ragService.formatContext(chunks)
+					);
+					ragChunks = trimmed.kept;
+					ragBudgetDropped = trimmed.dropped;
+					ragTruncatedLast = trimmed.truncatedLast;
 					const context = ragService.formatContext(ragChunks);
 					if (context) {
-						ragChars = context.length;
-						systemParts.push(
-							"Relevant excerpts retrieved from the indexed course folder:\n\n" + context
-						);
+						ragChars = RAG_BLOCK_PREFIX.length + context.length;
+						systemParts.push(RAG_BLOCK_PREFIX + context);
 						segments.push({
 							id: "rag",
 							labelKey: "chat.contextSegment.rag",
@@ -192,32 +199,59 @@ export async function buildChatContext(
 		}
 	}
 
-	const citationBlock = buildCitationSystemBlock(contextFiles, noteParts, ragChunks);
+	const citationBlock = buildCitationSystemBlock(noteParts, ragChunks);
 	if (citationBlock) {
 		systemParts.push(citationBlock);
 	}
+	const citationChars = citationBlock?.length ?? 0;
+	const allowedWikiLinks = collectAllowedWikiLinks(noteParts, ragChunks);
 
-	const historyLimit = settings.chatHistoryTurnLimit;
-	const historyStats = buildHistoryParts(history, historyLimit, imageOmittedLabel);
-	let historyChars = 0;
-	for (const turn of historyStats.included) {
-		historyChars += estimateTurnChars(turn, imageOmittedLabel.length + 4);
-	}
+	const historyBudget = Math.max(
+		0,
+		budgetChars -
+			baseSystemChars -
+			effectiveUserChars -
+			notesChars -
+			ragChars -
+			citationChars
+	);
+	const historyStats = buildHistoryWithinBudget(
+		history,
+		historyBudget,
+		settings.chatHistoryTurnLimit,
+		imageOmittedLabel
+	);
+
 	if (historyStats.included.length > 0) {
 		segments.push({
 			id: "history",
 			labelKey: "chat.contextSegment.history",
-			chars: historyChars,
+			chars: historyStats.chars,
 			colorVar: "--ll-context-history",
 		});
 	}
 
-	const systemChars = systemParts.join("\n\n").length;
-	segments[0]!.chars = systemChars;
+	if (effectiveUserChars > 0) {
+		segments.push({
+			id: "user",
+			labelKey: "chat.contextSegment.user",
+			chars: effectiveUserChars,
+			colorVar: "--ll-context-user",
+		});
+	}
 
-	const totalChars = systemChars + historyChars;
-	const budgetChars = settings.chatContextBudgetChars;
+	const systemChars = systemParts.join("\n\n").length;
+	segments.unshift({
+		id: "system",
+		labelKey: "chat.contextSegment.system",
+		chars: systemChars,
+		colorVar: "--ll-context-system",
+	});
+
+	const totalChars = systemChars + historyStats.chars + effectiveUserChars;
 	const budgetPercent = budgetChars > 0 ? (totalChars / budgetChars) * 100 : 0;
+	const budgetStatus: ChatContextSnapshot["budgetStatus"] =
+		budgetPercent > 100 ? "over" : budgetPercent > 90 ? "tight" : "ok";
 
 	const messages: ChatMessage[] = [LLMService.createTextMessage("system", systemParts.join("\n\n"))];
 
@@ -225,7 +259,9 @@ export async function buildChatContext(
 		for (const turn of historyStats.included) {
 			let content = turn.content;
 
-			if (turn.role === "user" && turn.imageDescription) {
+			if (turn.role === "assistant") {
+				content = sanitizeAssistantHistoryContent(content, allowedWikiLinks);
+			} else if (turn.role === "user" && turn.imageDescription) {
 				content = `${content}\n\n${formatImageDescriptionForChat(turn.imageDescription)}`;
 			} else if (
 				turn.role === "user" &&
@@ -258,17 +294,23 @@ export async function buildChatContext(
 		queryPreview: previewText(userText, 64),
 		historyTurnsIncluded: historyStats.included.length,
 		historyTurnsTotal: history.length,
+		historyTurnsOmittedByBudget: historyStats.omittedByBudget,
+		historyTurnsOmittedByTurnLimit: historyStats.omittedByTurnLimit,
 		historyParts: historyStats.parts,
+		userChars: effectiveUserChars,
 		notes: noteParts,
 		ragChunks,
 		ragIssue,
 		ragFilteredCount,
+		ragBudgetDropped,
+		ragTruncatedLast,
 		ragEnabled: includeRag && settings.ragEnabled,
 		notesEnabled: includeNotes,
 		segments,
 		totalChars,
 		budgetChars,
 		budgetPercent,
+		budgetStatus,
 		isPreview,
 	};
 

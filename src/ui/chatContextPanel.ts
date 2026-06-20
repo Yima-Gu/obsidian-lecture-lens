@@ -1,7 +1,7 @@
 import { App, setIcon } from "obsidian";
 import { ChatContextSnapshot } from "../types/chatContext";
 import { TranslationKey } from "../i18n/en";
-import { clampPercent } from "../utils/contextBudget";
+import { clampPercent, estimateTokens, formatContextSize } from "../utils/contextBudget";
 import { appendWikiLinkEl } from "../utils/wikiLink";
 
 export interface ContextPanelControls {
@@ -106,6 +106,7 @@ export function renderContextPanelBody(
 	}
 
 	renderRagCompact(bodyContent, snapshot, tr, app);
+	renderTrimHints(bodyContent, snapshot, tr);
 }
 
 function formatContextSummary(snapshot: ChatContextSnapshot, tr: Translator): string {
@@ -158,7 +159,13 @@ function renderBudgetRow(
 	});
 
 	const bar = row.createEl("div", {
-		cls: `lecture-lens-chat-context-budget-bar ${snapshot.budgetPercent > 90 ? "is-warning" : ""}`,
+		cls: `lecture-lens-chat-context-budget-bar ${
+			snapshot.budgetStatus === "over"
+				? "is-over"
+				: snapshot.budgetStatus === "tight"
+					? "is-warning"
+					: ""
+		}`,
 	});
 	const fill = bar.createEl("div", { cls: "lecture-lens-chat-context-budget-fill" });
 
@@ -175,12 +182,51 @@ function renderBudgetRow(
 		});
 	}
 
-	if (snapshot.historyTurnsIncluded > 0) {
+	row.createSpan({
+		cls: "lecture-lens-chat-context-stat-line",
+		text: tr("chat.contextPanel.budgetMeta", {
+			percent: clampPercent(snapshot.budgetPercent),
+			chars: formatContextSize(snapshot.totalChars),
+			tokens: estimateTokens(snapshot.totalChars),
+		}),
+	});
+
+	if (snapshot.budgetStatus === "over") {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint is-over",
+			text: tr("chat.contextPanel.budgetOver"),
+		});
+	} else if (snapshot.budgetStatus === "tight") {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint is-warning",
+			text: tr("chat.contextPanel.budgetTight"),
+		});
+	}
+
+	if (snapshot.historyTurnsIncluded > 0 || snapshot.historyTurnsTotal > 0) {
 		row.createSpan({
 			cls: "lecture-lens-chat-context-stat-line",
 			text: tr("chat.contextPanel.historyCompact", {
 				included: snapshot.historyTurnsIncluded,
 				total: snapshot.historyTurnsTotal,
+			}),
+		});
+	}
+
+	if (snapshot.historyTurnsOmittedByBudget > 0) {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint",
+			text: tr("chat.contextPanel.historyOmittedBudget", {
+				count: snapshot.historyTurnsOmittedByBudget,
+			}),
+		});
+	}
+
+	if (snapshot.historyTurnsOmittedByTurnLimit > 0) {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint",
+			text: tr("chat.contextPanel.historyOmittedTurnLimit", {
+				count: snapshot.historyTurnsOmittedByTurnLimit,
 			}),
 		});
 	}
@@ -250,6 +296,35 @@ function renderRagCompact(
 		app,
 		"rag"
 	);
+}
+
+function renderTrimHints(
+	parent: HTMLElement,
+	snapshot: ChatContextSnapshot,
+	tr: Translator
+): void {
+	const hints: string[] = [];
+
+	if (snapshot.ragFilteredCount > 0) {
+		hints.push(
+			tr("chat.contextPanel.ragFiltered", { count: snapshot.ragFilteredCount })
+		);
+	}
+	if (snapshot.ragBudgetDropped > 0) {
+		hints.push(
+			tr("chat.contextPanel.ragBudgetDropped", { count: snapshot.ragBudgetDropped })
+		);
+	}
+	if (snapshot.ragTruncatedLast) {
+		hints.push(tr("chat.contextPanel.ragBudgetTruncated"));
+	}
+
+	if (hints.length === 0) return;
+
+	const group = parent.createEl("div", { cls: "lecture-lens-chat-context-trim-group" });
+	for (const hint of hints) {
+		group.createSpan({ cls: "lecture-lens-chat-context-trim-hint", text: hint });
+	}
 }
 
 function ragIssueLabel(

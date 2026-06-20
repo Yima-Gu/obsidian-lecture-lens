@@ -14,7 +14,7 @@ function wrapChatTables(container: HTMLElement): void {
 		const parent = table.parentElement;
 		if (!parent) continue;
 
-		const scroll = document.createElement("div");
+		const scroll = activeDocument.createElement("div");
 		scroll.className = "lecture-lens-table-scroll";
 		parent.insertBefore(scroll, table);
 		scroll.appendChild(table);

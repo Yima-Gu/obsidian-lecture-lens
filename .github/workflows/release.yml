@@ -36,23 +36,27 @@ jobs:
                       exit 1
                   fi
 
-            - name: Verify release artifacts
+            - name: Verify build outputs
               run: |
                   set -e
-                  for file in main.js manifest.json styles.css transformers.min.js ort-wasm-simd.wasm ort-wasm.wasm; do
+                  for file in main.js manifest.json styles.css; do
                       if [ ! -f "$file" ]; then
                           echo "::error::Missing release artifact: $file"
                           exit 1
                       fi
                   done
+                  for file in transformers.min.js ort-wasm-simd.wasm ort-wasm.wasm; do
+                      if [ ! -f "$file" ]; then
+                          echo "::warning::Runtime file missing (fetched on first use): $file"
+                      fi
+                  done
                   shopt -s nullglob
                   workers=(pdf.worker*.min.mjs)
                   if [ ${#workers[@]} -eq 0 ]; then
-                      echo "::error::Missing release artifact: pdf.worker*.min.mjs"
-                      exit 1
+                      echo "::warning::PDF worker missing (fetched on first use)"
                   fi
-                  echo "Release artifacts:"
-                  ls -lh main.js manifest.json styles.css transformers.min.js ort-wasm-simd.wasm ort-wasm.wasm "${workers[@]}"
+                  echo "Catalog release assets:"
+                  ls -lh main.js manifest.json styles.css
 
             - name: Attest release artifacts
               uses: actions/attest-build-provenance@v2
@@ -66,17 +70,10 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
-                  assets=(
-                      main.js
-                      manifest.json
-                      styles.css
-                      transformers.min.js
-                      ort-wasm-simd.wasm
-                      ort-wasm.wasm
-                      pdf.worker*.min.mjs
-                  )
+                  # Obsidian Community Plugins only download main.js, manifest.json, styles.css.
+                  assets=(main.js manifest.json styles.css)
                   if gh release view "$tag" >/dev/null 2>&1; then
-                      echo "Release $tag already exists — uploading build artifacts."
+                      echo "Release $tag already exists — uploading catalog assets."
                       gh release upload "$tag" --clobber "${assets[@]}"
                   else
                       gh release create "$tag" \

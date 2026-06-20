@@ -1,6 +1,6 @@
 {
 	"name": "lecture-lens",
-	"version": "1.1.4",
+	"version": "1.1.5",
 	"description": "Turn lecture slides and whiteboard photos into structured notes using Multimodal LLMs.",
 	"main": "main.js",
 	"type": "module",

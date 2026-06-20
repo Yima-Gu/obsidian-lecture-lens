@@ -1,11 +1,7 @@
 import { App, setIcon } from "obsidian";
 import { ChatContextSnapshot } from "../types/chatContext";
 import { TranslationKey } from "../i18n/en";
-import {
-	clampPercent,
-	estimateTokens,
-	formatContextSize,
-} from "../utils/contextBudget";
+import { clampPercent, estimateTokens, formatContextSize } from "../utils/contextBudget";
 import { appendWikiLinkEl } from "../utils/wikiLink";
 
 export interface ContextPanelControls {
@@ -41,6 +37,8 @@ export function mountContextPanel(
 
 	const summaryText = summary.createEl("span", { cls: "lecture-lens-chat-context-summary-text" });
 	summaryText.setText(tr("chat.contextPanel.empty"));
+
+	summary.createEl("span", { cls: "lecture-lens-chat-context-summary-chevron" });
 
 	const body = panel.createEl("div", { cls: "lecture-lens-chat-context-body" });
 	const toggles = body.createEl("div", { cls: "lecture-lens-chat-context-toggles" });
@@ -98,37 +96,26 @@ export function renderContextPanelBody(
 		return;
 	}
 
-	renderBudgetBar(bodyContent, snapshot, tr);
-	renderSegmentLegend(bodyContent, snapshot, tr);
-
-	if (snapshot.historyParts.length > 0) {
-		renderHistorySection(bodyContent, snapshot, tr);
-	}
+	renderBudgetRow(bodyContent, snapshot, tr);
 
 	if (snapshot.notes.length > 0) {
-		renderNotesSection(bodyContent, snapshot, tr, app);
-	} else if (snapshot.notesEnabled) {
-		bodyContent.createEl("p", {
-			cls: "lecture-lens-chat-context-empty-line",
-			text: tr("chat.contextPanel.noNotes"),
-		});
+		renderSourcePills(bodyContent, snapshot.notes.map((note) => ({
+			path: note.path,
+			truncated: note.truncated,
+		})), tr, app, "notes");
 	}
 
-	renderRagSection(bodyContent, snapshot, tr, app);
+	renderRagCompact(bodyContent, snapshot, tr, app);
+	renderTrimHints(bodyContent, snapshot, tr);
 }
 
-function formatContextSummary(
-	snapshot: ChatContextSnapshot,
-	tr: Translator
-): string {
+function formatContextSummary(snapshot: ChatContextSnapshot, tr: Translator): string {
 	const prefix = snapshot.isPreview
 		? tr("chat.contextPanel.preview")
 		: tr("chat.contextPanel.lastRequest");
 	return tr("chat.contextPanel.summary", {
 		prefix,
-		used: formatContextSize(snapshot.totalChars),
-		budget: formatContextSize(snapshot.budgetChars),
-		tokens: estimateTokens(snapshot.totalChars),
+		percent: clampPercent(snapshot.budgetPercent),
 		turns: snapshot.historyTurnsIncluded,
 		notes: snapshot.notes.length,
 		rag: snapshot.ragChunks.length,
@@ -141,28 +128,44 @@ function renderToggle(
 	checked: boolean,
 	onChange: (value: boolean) => void
 ): void {
-	const row = parent.createEl("label", { cls: "lecture-lens-chat-context-toggle" });
+	const row = parent.createEl("label", {
+		cls: `lecture-lens-chat-context-toggle ${checked ? "is-on" : ""}`,
+	});
 	const input = row.createEl("input", { type: "checkbox" });
 	input.checked = checked;
 	input.addEventListener("change", () => {
+		row.toggleClass("is-on", input.checked);
 		onChange(input.checked);
 	});
-	row.createSpan({ text: label });
+	row.createSpan({ cls: "lecture-lens-chat-context-toggle-label", text: label });
 }
 
-function renderBudgetBar(
+function renderBudgetRow(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
 	tr: Translator
 ): void {
-	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
-	section.createEl("div", {
-		cls: "lecture-lens-chat-context-section-title",
+	const row = parent.createEl("div", { cls: "lecture-lens-chat-context-budget-row" });
+	const meta = row.createEl("div", { cls: "lecture-lens-chat-context-budget-head" });
+	meta.createSpan({
+		cls: "lecture-lens-chat-context-budget-label",
 		text: tr("chat.contextPanel.budgetTitle"),
 	});
+	meta.createSpan({
+		cls: "lecture-lens-chat-context-budget-percent",
+		text: tr("chat.contextPanel.budgetPercent", {
+			percent: clampPercent(snapshot.budgetPercent),
+		}),
+	});
 
-	const bar = section.createEl("div", {
-		cls: `lecture-lens-chat-context-budget-bar ${snapshot.budgetPercent > 90 ? "is-warning" : ""}`,
+	const bar = row.createEl("div", {
+		cls: `lecture-lens-chat-context-budget-bar ${
+			snapshot.budgetStatus === "over"
+				? "is-over"
+				: snapshot.budgetStatus === "tight"
+					? "is-warning"
+					: ""
+		}`,
 	});
 	const fill = bar.createEl("div", { cls: "lecture-lens-chat-context-budget-fill" });
 
@@ -179,180 +182,149 @@ function renderBudgetBar(
 		});
 	}
 
-	section.createEl("div", {
-		cls: "lecture-lens-chat-context-budget-meta",
+	row.createSpan({
+		cls: "lecture-lens-chat-context-stat-line",
 		text: tr("chat.contextPanel.budgetMeta", {
 			percent: clampPercent(snapshot.budgetPercent),
-			chars: snapshot.totalChars.toLocaleString(),
+			chars: formatContextSize(snapshot.totalChars),
 			tokens: estimateTokens(snapshot.totalChars),
 		}),
 	});
-}
 
-function renderSegmentLegend(
-	parent: HTMLElement,
-	snapshot: ChatContextSnapshot,
-	tr: Translator
-): void {
-	const legend = parent.createEl("div", { cls: "lecture-lens-chat-context-legend" });
-	for (const segment of snapshot.segments) {
-		const item = legend.createEl("span", { cls: "lecture-lens-chat-context-legend-item" });
-		item.createEl("span", {
-			cls: "lecture-lens-chat-context-legend-dot",
-			attr: { style: `background:var(${segment.colorVar});` },
+	if (snapshot.budgetStatus === "over") {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint is-over",
+			text: tr("chat.contextPanel.budgetOver"),
 		});
-		item.createSpan({
-			text: `${tr(segment.labelKey)} · ${formatContextSize(segment.chars)}`,
+	} else if (snapshot.budgetStatus === "tight") {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint is-warning",
+			text: tr("chat.contextPanel.budgetTight"),
 		});
 	}
-}
 
-function renderHistorySection(
-	parent: HTMLElement,
-	snapshot: ChatContextSnapshot,
-	tr: Translator
-): void {
-	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
-	section.createEl("div", {
-		cls: "lecture-lens-chat-context-section-title",
-		text: tr("chat.contextPanel.historyTitle", {
-			included: snapshot.historyTurnsIncluded,
-			total: snapshot.historyTurnsTotal,
-		}),
-	});
-
-	const list = section.createEl("div", { cls: "lecture-lens-chat-context-history-list" });
-	for (const part of snapshot.historyParts) {
-		const row = list.createEl("div", {
-			cls: `lecture-lens-chat-context-history-item is-${part.role}`,
-		});
+	if (snapshot.historyTurnsIncluded > 0 || snapshot.historyTurnsTotal > 0) {
 		row.createSpan({
-			cls: "lecture-lens-chat-context-history-role",
-			text: part.role === "user" ? tr("chat.roleUser") : tr("chat.roleAi"),
-		});
-		row.createSpan({ cls: "lecture-lens-chat-context-history-preview", text: part.preview });
-		row.createSpan({
-			cls: "lecture-lens-chat-context-history-meta",
-			text: formatContextSize(part.chars),
-		});
-	}
-}
-
-function renderNotesSection(
-	parent: HTMLElement,
-	snapshot: ChatContextSnapshot,
-	tr: Translator,
-	app: App
-): void {
-	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
-	section.createEl("div", {
-		cls: "lecture-lens-chat-context-section-title",
-		text: tr("chat.contextPanel.notesTitle", { count: snapshot.notes.length }),
-	});
-
-	const list = section.createEl("div", { cls: "lecture-lens-chat-context-note-list" });
-	for (const note of snapshot.notes) {
-		const row = list.createEl("div", { cls: "lecture-lens-chat-context-note-item" });
-		const meta = row.createEl("div", { cls: "lecture-lens-chat-context-note-meta" });
-		appendWikiLinkEl(meta, app, note.path);
-		meta.createSpan({
-			cls: "lecture-lens-chat-context-note-size",
-			text: tr("chat.contextPanel.noteSize", {
-				used: formatContextSize(note.usedChars),
-				total: formatContextSize(note.originalChars),
+			cls: "lecture-lens-chat-context-stat-line",
+			text: tr("chat.contextPanel.historyCompact", {
+				included: snapshot.historyTurnsIncluded,
+				total: snapshot.historyTurnsTotal,
 			}),
 		});
+	}
 
-		const bar = row.createEl("div", { cls: "lecture-lens-chat-context-note-bar" });
-		const usedPercent =
-			note.originalChars > 0 ? clampPercent((note.usedChars / note.originalChars) * 100) : 100;
-		bar.createEl("span", {
-			cls: `lecture-lens-chat-context-note-bar-fill ${note.truncated ? "is-truncated" : ""}`,
-			attr: { style: `width:${usedPercent}%;` },
+	if (snapshot.historyTurnsOmittedByBudget > 0) {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint",
+			text: tr("chat.contextPanel.historyOmittedBudget", {
+				count: snapshot.historyTurnsOmittedByBudget,
+			}),
 		});
+	}
 
-		if (note.truncated) {
-			row.createSpan({
-				cls: "lecture-lens-chat-context-note-truncated",
-				text: tr("chat.contextPanel.noteTruncated"),
+	if (snapshot.historyTurnsOmittedByTurnLimit > 0) {
+		row.createSpan({
+			cls: "lecture-lens-chat-context-trim-hint",
+			text: tr("chat.contextPanel.historyOmittedTurnLimit", {
+				count: snapshot.historyTurnsOmittedByTurnLimit,
+			}),
+		});
+	}
+}
+
+function renderSourcePills(
+	parent: HTMLElement,
+	items: Array<{ path: string; heading?: string; truncated?: boolean }>,
+	tr: Translator,
+	app: App,
+	kind: "notes" | "rag"
+): void {
+	const group = parent.createEl("div", { cls: "lecture-lens-chat-context-source-group" });
+	group.createSpan({
+		cls: "lecture-lens-chat-context-source-label",
+		text:
+			kind === "notes"
+				? tr("chat.contextPanel.notesTitle", { count: items.length })
+				: tr("chat.contextPanel.ragTitle", { count: items.length }),
+	});
+
+	const pills = group.createEl("div", { cls: "lecture-lens-chat-context-pills" });
+	for (const item of items) {
+		const pill = pills.createEl("span", { cls: "lecture-lens-chat-context-pill" });
+		appendWikiLinkEl(pill, app, item.path, item.heading);
+		if (item.truncated) {
+			pill.createSpan({
+				cls: "lecture-lens-chat-context-pill-tag",
+				attr: { title: tr("chat.contextPanel.noteTruncated") },
+				text: "…",
 			});
 		}
 	}
 }
 
-function renderRagSection(
+function renderRagCompact(
 	parent: HTMLElement,
 	snapshot: ChatContextSnapshot,
 	tr: Translator,
 	app: App
 ): void {
-	const section = parent.createEl("div", { cls: "lecture-lens-chat-context-section" });
-	section.createEl("div", {
-		cls: "lecture-lens-chat-context-section-title",
-		text: tr("chat.contextPanel.ragTitle", { count: snapshot.ragChunks.length }),
-	});
-
-	if (!snapshot.ragEnabled) {
-		section.createEl("p", {
-			cls: "lecture-lens-chat-context-empty-line",
-			text: tr("chat.contextPanel.ragDisabled"),
-		});
-		return;
-	}
+	if (!snapshot.ragEnabled) return;
 
 	if (snapshot.ragIssue) {
-		section.createEl("p", {
-			cls: "lecture-lens-chat-context-rag-issue",
+		parent.createEl("p", {
+			cls: "lecture-lens-chat-context-status",
 			text: ragIssueLabel(snapshot.ragIssue, tr),
 		});
-	}
-
-	if (snapshot.ragFilteredCount > 0) {
-		section.createEl("p", {
-			cls: "lecture-lens-chat-context-rag-filtered",
-			text: tr("chat.contextPanel.ragFiltered", { count: snapshot.ragFilteredCount }),
-		});
+		return;
 	}
 
 	if (snapshot.ragChunks.length === 0) {
-		if (!snapshot.ragIssue) {
-			section.createEl("p", {
-				cls: "lecture-lens-chat-context-empty-line",
-				text: tr("chat.contextPanel.ragEmpty"),
-			});
-		}
+		parent.createEl("p", {
+			cls: "lecture-lens-chat-context-status",
+			text: tr("chat.contextPanel.ragAwaitQuery"),
+		});
 		return;
 	}
 
-	const list = section.createEl("div", { cls: "lecture-lens-chat-context-rag-list" });
-	for (const chunk of snapshot.ragChunks) {
-		const row = list.createEl("div", { cls: "lecture-lens-chat-context-rag-item" });
-		const scoreRow = row.createEl("div", { cls: "lecture-lens-chat-context-rag-score-row" });
-		scoreRow.createSpan({
-			cls: "lecture-lens-chat-context-rag-score-label",
-			text: tr("chat.contextPanel.ragScore", {
-				score: clampPercent(chunk.score * 100),
-			}),
-		});
-		const scoreBar = scoreRow.createEl("div", { cls: "lecture-lens-chat-context-rag-score-bar" });
-		scoreBar.createEl("span", {
-			cls: "lecture-lens-chat-context-rag-score-fill",
-			attr: { style: `width:${clampPercent(chunk.score * 100)}%;` },
-		});
-
-		const sourceRow = row.createEl("div", { cls: "lecture-lens-chat-context-rag-source" });
-		appendWikiLinkEl(sourceRow, app, chunk.filePath, chunk.heading);
-		row.createEl("div", {
-			cls: "lecture-lens-chat-context-rag-preview",
-			text: previewText(chunk.content, 120),
-		});
-	}
+	renderSourcePills(
+		parent,
+		snapshot.ragChunks.map((chunk) => ({
+			path: chunk.filePath,
+			heading: chunk.heading,
+		})),
+		tr,
+		app,
+		"rag"
+	);
 }
 
-function previewText(text: string, maxLen: number): string {
-	const trimmed = text.trim().replace(/\s+/g, " ");
-	if (!trimmed) return "…";
-	return trimmed.length > maxLen ? `${trimmed.slice(0, maxLen)}…` : trimmed;
+function renderTrimHints(
+	parent: HTMLElement,
+	snapshot: ChatContextSnapshot,
+	tr: Translator
+): void {
+	const hints: string[] = [];
+
+	if (snapshot.ragFilteredCount > 0) {
+		hints.push(
+			tr("chat.contextPanel.ragFiltered", { count: snapshot.ragFilteredCount })
+		);
+	}
+	if (snapshot.ragBudgetDropped > 0) {
+		hints.push(
+			tr("chat.contextPanel.ragBudgetDropped", { count: snapshot.ragBudgetDropped })
+		);
+	}
+	if (snapshot.ragTruncatedLast) {
+		hints.push(tr("chat.contextPanel.ragBudgetTruncated"));
+	}
+
+	if (hints.length === 0) return;
+
+	const group = parent.createEl("div", { cls: "lecture-lens-chat-context-trim-group" });
+	for (const hint of hints) {
+		group.createSpan({ cls: "lecture-lens-chat-context-trim-hint", text: hint });
+	}
 }
 
 function ragIssueLabel(

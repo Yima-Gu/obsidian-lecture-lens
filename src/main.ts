@@ -24,6 +24,16 @@ import { EmbeddingModelStatusService } from "./services/embeddingModelStatus";
 import { ChatHistoryService } from "./services/chatHistoryService";
 import { VisionRelayService } from "./services/visionRelayService";
 import { configurePdfWorker, releasePdfWorker } from "./services/pdfDocumentService";
+import {
+	fetchRemoteModels,
+	findRemoteModel,
+	isModelCatalogStale,
+	resolveChatTemperature,
+	resolveModelContextPolicy,
+} from "./services/modelCatalogService";
+import { ModelContextPolicy } from "./types/modelContextPolicy";
+import { RemoteModelInfo } from "./types/remoteModel";
+import { providerSupportsRemoteModelList, modelSupportsVisionApi } from "./constants/providers";
 import { runPdfNotesPipeline } from "./features/pdfNotes/pdfNotesPipeline";
 import {
 	findProfileById,
@@ -39,7 +49,6 @@ import {
 import { hasCourseFolderInput } from "./utils/vaultPath";
 import { clampChatMessageFontSize } from "./constants/chatAppearance";
 import { CHAT_VIEW_TYPE } from "./constants";
-import { modelSupportsVisionApi } from "./constants/providers";
 import { activateChatView, ChatView, registerChatView } from "./ui/chatView";
 import { PdfMultiSelectModal } from "./ui/pdfMultiSelectModal";
 import { PdfNotesOptionsModal } from "./ui/pdfNotesOptionsModal";
@@ -450,10 +459,20 @@ export default class LectureLensPlugin extends Plugin {
 		const previous = this.getDefaultLlmProfile();
 		this.applyLlmProfile(profile);
 		try {
+			const remote = findRemoteModel(profile.remoteModels, profile.modelName);
+			const temperature = resolveChatTemperature(profile.apiProvider, profile.modelName, remote);
 			const response = await this.llmService.chatCompletion(
 				[{ role: "user", content: "Hello! Please respond with 'OK' to confirm connection." }],
-				{ max_tokens: 10, temperature: 0 }
+				{ max_tokens: 10, temperature }
 			);
+			if (providerSupportsRemoteModelList(profile.apiProvider)) {
+				try {
+					const count = await this.refreshProfileRemoteModels(profile, { force: true });
+					new Notice(this.tr("notice.modelsFetched", { count }), 4000);
+				} catch (error) {
+					console.warn("[Lecture Lens] Failed to fetch remote model list:", error);
+				}
+			}
 			testNotice.hide();
 			const messageContent = response.choices[0]?.message?.content;
 			const message =
@@ -465,6 +484,88 @@ export default class LectureLensPlugin extends Plugin {
 		} finally {
 			this.applyLlmProfile(previous);
 		}
+	}
+
+	/** Fetch available models via GET /models (Kimi, DeepSeek). Cached for 24h unless forced. */
+	async refreshProfileRemoteModels(
+		profile: LlmProfile,
+		options?: { force?: boolean }
+	): Promise<number> {
+		if (!providerSupportsRemoteModelList(profile.apiProvider)) {
+			return profile.remoteModels?.length ?? 0;
+		}
+		if (!profile.apiKey.trim()) {
+			throw new LLMServiceError(this.tr("notice.llmProfileMissingKey"));
+		}
+		if (
+			!options?.force &&
+			profile.remoteModels?.length &&
+			!isModelCatalogStale(profile.remoteModelsFetchedAt)
+		) {
+			return profile.remoteModels.length;
+		}
+
+		const models = await fetchRemoteModels(profile.apiKey, profile.baseUrl, profile.apiProvider);
+		profile.remoteModels = models;
+		profile.remoteModelsFetchedAt = Date.now();
+		await this.applyModelProfileSettings(profile, profile.modelName, { save: false });
+		this.syncLegacyApiFieldsFromDefaultProfile();
+		await this.saveSettings();
+		return models.length;
+	}
+
+	async ensureProfileRemoteModels(profile: LlmProfile): Promise<RemoteModelInfo[]> {
+		if (!providerSupportsRemoteModelList(profile.apiProvider) || !profile.apiKey.trim()) {
+			return profile.remoteModels ?? [];
+		}
+		if (profile.remoteModels?.length && !isModelCatalogStale(profile.remoteModelsFetchedAt)) {
+			return profile.remoteModels;
+		}
+		try {
+			await this.refreshProfileRemoteModels(profile);
+		} catch (error) {
+			console.warn("[Lecture Lens] Failed to fetch remote model list:", error);
+		}
+		return profile.remoteModels ?? [];
+	}
+
+	applyRemoteModelCapabilities(profile: LlmProfile, modelName: string): void {
+		if (profile.apiProvider === "DeepSeek") {
+			profile.supportsVision = false;
+			return;
+		}
+		const remote = findRemoteModel(profile.remoteModels, modelName);
+		if (remote?.supportsImageIn !== undefined) {
+			profile.supportsVision = remote.supportsImageIn;
+			return;
+		}
+		if (modelSupportsVisionApi(profile.apiProvider, modelName, true)) {
+			profile.supportsVision = true;
+		}
+	}
+
+	/** Apply vision flags and context budget/history/RAG limits for the active model. */
+	async applyModelProfileSettings(
+		profile: LlmProfile,
+		modelName: string,
+		options?: { save?: boolean }
+	): Promise<ModelContextPolicy> {
+		this.applyRemoteModelCapabilities(profile, modelName);
+		const remote = findRemoteModel(profile.remoteModels, modelName);
+		const policy = resolveModelContextPolicy(profile.apiProvider, modelName.trim(), remote);
+
+		this.settings.chatContextBudgetChars = policy.budgetChars;
+		this.settings.chatHistoryTurnLimit = policy.historyTurnLimit;
+		this.settings.ragTopK = policy.ragTopK;
+		this.settings.maxNoteContextChars = policy.maxNoteContextChars;
+
+		this.syncLegacyApiFieldsFromDefaultProfile();
+
+		if (options?.save !== false) {
+			await this.saveSettings();
+		}
+
+		return policy;
 	}
 
 	getEmbeddingRuntimeConfig(): EmbeddingRuntimeConfig {

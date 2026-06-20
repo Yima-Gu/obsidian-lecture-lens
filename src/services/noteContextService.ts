@@ -12,6 +12,7 @@ export class NoteContextService {
 		const result: TFile[] = [];
 		for (const file of files) {
 			if (!file || seen.has(file.path)) continue;
+			if (!this.app.vault.getAbstractFileByPath(file.path)) continue;
 			seen.add(file.path);
 			result.push(file);
 		}
@@ -21,6 +22,7 @@ export class NoteContextService {
 	async buildContextParts(files: TFile[], maxCharsPerFile: number): Promise<NoteContextPart[]> {
 		const parts: NoteContextPart[] = [];
 		for (const file of files) {
+			if (!this.app.vault.getAbstractFileByPath(file.path)) continue;
 			const content = await this.app.vault.read(file);
 			const truncated = content.length > maxCharsPerFile;
 			const usedText = truncated
@@ -42,6 +44,7 @@ export class NoteContextService {
 
 		const parts: string[] = [];
 		for (const file of files) {
+			if (!this.app.vault.getAbstractFileByPath(file.path)) continue;
 			const content = await this.app.vault.read(file);
 			const truncated = content.length > maxCharsPerFile;
 			const text = truncated ? content.slice(0, maxCharsPerFile) + TRUNCATION_MARKER : content;

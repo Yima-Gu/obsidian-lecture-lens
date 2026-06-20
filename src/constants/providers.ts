@@ -1,6 +1,7 @@
 import { ApiProvider } from "../settings";
 import { ResolvedLocale } from "../i18n";
 import { TranslationKey } from "../i18n/en";
+import { RemoteModelInfo } from "../types/remoteModel";
 
 export interface ProviderPreset {
 	baseUrl: string;
@@ -67,7 +68,24 @@ export const CHAT_MODEL_OPTIONS: Partial<Record<ApiProvider, string[]>> = {
 /** @deprecated Use CHAT_MODEL_OPTIONS */
 export const VISION_MODEL_SUGGESTIONS = CHAT_MODEL_OPTIONS;
 
-export function getChatModelsForProvider(provider: ApiProvider, currentModel?: string): string[] {
+export function providerSupportsRemoteModelList(provider: ApiProvider): boolean {
+	return provider === "Kimi" || provider === "DeepSeek";
+}
+
+export function getChatModelsForProvider(
+	provider: ApiProvider,
+	currentModel?: string,
+	remoteModels?: RemoteModelInfo[]
+): string[] {
+	if (remoteModels?.length) {
+		const models = remoteModels.map((model) => model.id);
+		const trimmed = currentModel?.trim();
+		if (trimmed && !models.includes(trimmed)) {
+			models.unshift(trimmed);
+		}
+		return models;
+	}
+
 	const presets = CHAT_MODEL_OPTIONS[provider];
 	if (presets?.length) {
 		const models = [...presets];

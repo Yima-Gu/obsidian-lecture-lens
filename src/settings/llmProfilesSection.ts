@@ -1,4 +1,4 @@
-import { Setting } from "obsidian";
+import { Notice, Setting } from "obsidian";
 import {
 	applyProviderPresetToProfile,
 	createProfileFromProvider,
@@ -8,7 +8,10 @@ import {
 	getProviderDropdownOptions,
 	PROVIDER_PRESETS,
 	CHAT_MODEL_OPTIONS,
+	providerSupportsRemoteModelList,
+	getChatModelsForProvider,
 } from "../constants/providers";
+import { formatRemoteModelLabel, findRemoteModel } from "../services/modelCatalogService";
 import { canEncryptSecrets } from "../services/secretStorage";
 import LectureLensPlugin from "../main";
 import { ApiProvider } from "../settings";
@@ -201,26 +204,75 @@ function renderProfileDetails(
 		.addText((text) =>
 			text.setValue(profile.modelName).onChange(async (value) => {
 				profile.modelName = value.trim();
-				plugin.syncLegacyApiFieldsFromDefaultProfile();
-				await plugin.saveSettings();
+				void plugin.applyModelProfileSettings(profile, profile.modelName).then(() => {
+					plugin.syncLegacyApiFieldsFromDefaultProfile();
+					rerender();
+				});
 			})
 		);
 
-	const visionModels = CHAT_MODEL_OPTIONS[profile.apiProvider];
-	if (visionModels?.length) {
+	const staticModels = CHAT_MODEL_OPTIONS[profile.apiProvider];
+	const remoteModels = profile.remoteModels;
+	const modelOptions = getChatModelsForProvider(
+		profile.apiProvider,
+		profile.modelName,
+		remoteModels
+	);
+
+	if (modelOptions.length > 0) {
 		new Setting(containerEl)
 			.setName(tr("settings.modelPreset.name"))
 			.addDropdown((dropdown) => {
-				for (const model of visionModels) dropdown.addOption(model, model);
+				for (const modelId of modelOptions) {
+					const remote = findRemoteModel(remoteModels, modelId);
+					const label = remote ? formatRemoteModelLabel(remote) : modelId;
+					dropdown.addOption(modelId, label);
+				}
 				dropdown
-					.setValue(visionModels.includes(profile.modelName) ? profile.modelName : visionModels[0]!)
+					.setValue(modelOptions.includes(profile.modelName) ? profile.modelName : modelOptions[0]!)
 					.onChange(async (value) => {
 						profile.modelName = value;
-						plugin.syncLegacyApiFieldsFromDefaultProfile();
-						await plugin.saveSettings();
+						await plugin.applyModelProfileSettings(profile, value);
 						rerender();
 					});
 			});
+	} else if (staticModels?.length) {
+		new Setting(containerEl)
+			.setName(tr("settings.modelPreset.name"))
+			.addDropdown((dropdown) => {
+				for (const model of staticModels) dropdown.addOption(model, model);
+				dropdown
+					.setValue(staticModels.includes(profile.modelName) ? profile.modelName : staticModels[0]!)
+					.onChange(async (value) => {
+						profile.modelName = value;
+						await plugin.applyModelProfileSettings(profile, value);
+						rerender();
+					});
+			});
+	}
+
+	if (providerSupportsRemoteModelList(profile.apiProvider)) {
+		new Setting(containerEl)
+			.setName(tr("settings.refreshModels.name"))
+			.setDesc(tr("settings.refreshModels.desc"))
+			.addButton((button) =>
+				button.setButtonText(tr("settings.refreshModels.button")).onClick(async () => {
+					button.setDisabled(true);
+					button.setButtonText(tr("settings.refreshModels.loading"));
+					try {
+						const count = await plugin.refreshProfileRemoteModels(profile, { force: true });
+						new Notice(tr("settings.refreshModels.success", { count }), 4000);
+						rerender();
+						onChanged();
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						new Notice(tr("settings.refreshModels.failed", { message }), 8000);
+					} finally {
+						button.setDisabled(false);
+						button.setButtonText(tr("settings.refreshModels.button"));
+					}
+				})
+			);
 	}
 
 	new Setting(containerEl)

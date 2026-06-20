@@ -11,7 +11,9 @@ import {
 	getChatModelsForProvider,
 	getProviderDropdownOptions,
 	isVisionApiError,
+	providerSupportsRemoteModelList,
 } from "../constants/providers";
+import { formatRemoteModelLabel, findRemoteModel, resolveChatTemperature } from "../services/modelCatalogService";
 import { resolveLocale } from "../i18n";
 import {
 	ChatSession,
@@ -162,35 +164,9 @@ export class ChatView extends ItemView {
 			cls: "mod-cta lecture-lens-chat-send-btn",
 			attr: { "aria-label": this.plugin.tr("chat.send"), title: this.plugin.tr("chat.send") },
 		});
-		setIcon(this.sendBtn, "send-horizontal");
+		setIcon(this.sendBtn, "arrow-up");
 
 		const footer = composerCard.createEl("div", { cls: "lecture-lens-chat-footer" });
-		const modelBar = footer.createEl("div", { cls: "lecture-lens-chat-model-bar" });
-
-		const providerGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
-		providerGroup.createSpan({
-			cls: "lecture-lens-chat-model-label",
-			text: this.plugin.tr("chat.providerSelect"),
-		});
-		this.providerSelectEl = providerGroup.createEl("select", {
-			cls: "dropdown lecture-lens-chat-model-select",
-		});
-		this.providerSelectEl.addEventListener("change", () => {
-			void this.handleProviderChange(this.providerSelectEl.value as ApiProvider);
-		});
-
-		const modelGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
-		modelGroup.createSpan({
-			cls: "lecture-lens-chat-model-label",
-			text: this.plugin.tr("chat.modelSelect"),
-		});
-		this.modelSelectEl = modelGroup.createEl("select", {
-			cls: "dropdown lecture-lens-chat-model-select lecture-lens-chat-model-select-wide",
-		});
-		this.modelSelectEl.addEventListener("change", () => {
-			void this.handleModelChange(this.modelSelectEl.value);
-		});
-
 		const footerTools = footer.createEl("div", { cls: "lecture-lens-chat-footer-tools" });
 		const leftActions = footerTools.createEl("div", { cls: "lecture-lens-chat-footer-left" });
 
@@ -198,17 +174,37 @@ export class ChatView extends ItemView {
 			cls: "lecture-lens-chat-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.addContext"), title: this.plugin.tr("chat.addContext") },
 		});
-		setIcon(addContextBtn, "paperclip");
+		setIcon(addContextBtn, "link-2");
 		addContextBtn.addEventListener("click", () => this.openFileSuggest());
 
 		const addImageBtn = leftActions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.addImage"), title: this.plugin.tr("chat.addImage") },
 		});
-		setIcon(addImageBtn, "image");
+		setIcon(addImageBtn, "image-plus");
 		addImageBtn.addEventListener("click", (event) => {
 			event.preventDefault();
 			this.openImagePicker();
+		});
+
+		const modelBar = footerTools.createEl("div", { cls: "lecture-lens-chat-model-bar" });
+
+		const providerGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		this.providerSelectEl = providerGroup.createEl("select", {
+			cls: "lecture-lens-chat-select lecture-lens-chat-model-select",
+			attr: { "aria-label": this.plugin.tr("chat.providerSelect") },
+		});
+		this.providerSelectEl.addEventListener("change", () => {
+			void this.handleProviderChange(this.providerSelectEl.value as ApiProvider);
+		});
+
+		const modelGroup = modelBar.createEl("div", { cls: "lecture-lens-chat-model-group" });
+		this.modelSelectEl = modelGroup.createEl("select", {
+			cls: "lecture-lens-chat-select lecture-lens-chat-model-select lecture-lens-chat-model-select-wide",
+			attr: { "aria-label": this.plugin.tr("chat.modelSelect") },
+		});
+		this.modelSelectEl.addEventListener("change", () => {
+			void this.handleModelChange(this.modelSelectEl.value);
 		});
 
 		leftActions.createEl("span", {
@@ -321,14 +317,14 @@ export class ChatView extends ItemView {
 			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.buildIndex"), title: this.plugin.tr("chat.buildIndex") },
 		});
-		setIcon(indexBtn, "database");
+		setIcon(indexBtn, "refresh-cw");
 		indexBtn.addEventListener("click", () => void this.rebuildIndex());
 
 		const newChatBtn = actions.createEl("button", {
 			cls: "lecture-lens-chat-icon-btn lecture-lens-chat-header-icon-btn",
 			attr: { "aria-label": this.plugin.tr("chat.newChat"), title: this.plugin.tr("chat.newChat") },
 		});
-		setIcon(newChatBtn, "plus");
+		setIcon(newChatBtn, "square-pen");
 		newChatBtn.addEventListener("click", () => void this.startNewChat());
 	}
 
@@ -345,8 +341,8 @@ export class ChatView extends ItemView {
 				"aria-label": this.plugin.tr("chat.fontSizeDecrease"),
 				title: this.plugin.tr("chat.fontSizeDecrease"),
 			},
-			text: "A−",
 		});
+		setIcon(decreaseBtn, "minus");
 		decreaseBtn.addEventListener("click", () => {
 			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize - 1);
 		});
@@ -362,8 +358,8 @@ export class ChatView extends ItemView {
 				"aria-label": this.plugin.tr("chat.fontSizeIncrease"),
 				title: this.plugin.tr("chat.fontSizeIncrease"),
 			},
-			text: "A+",
 		});
+		setIcon(increaseBtn, "plus");
 		increaseBtn.addEventListener("click", () => {
 			void this.plugin.setChatMessageFontSize(this.plugin.settings.chatMessageFontSize + 1);
 		});
@@ -394,7 +390,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.renameChat"),
 			},
 		});
-		setIcon(renameBtn, "pencil");
+		setIcon(renameBtn, "pencil-line");
 		renameBtn.addEventListener("click", () => this.openRenameSessionModal());
 
 		const deleteBtn = sessionActions.createEl("button", {
@@ -422,6 +418,12 @@ export class ChatView extends ItemView {
 		const profile = this.plugin.getLlmProfile(session.profileId);
 		this.currentModelName = session.modelName?.trim() || profile.modelName;
 		this.applySessionModel();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, this.getEffectiveModelName(), {
+			save: false,
+		});
 		await this.loadSessionIntoView(session);
 		await this.refreshModelSelectors();
 		await this.refreshSessionSelect();
@@ -446,32 +448,44 @@ export class ChatView extends ItemView {
 			(key) => this.plugin.tr(key),
 			locale
 		);
-		const currentProvider = this.getCurrentProfile().apiProvider;
+		const profile = this.getCurrentProfile();
+		const currentProvider = profile.apiProvider;
 
 		this.providerSelectEl.empty();
 		const seenProviders = new Set<ApiProvider>();
-		for (const profile of this.plugin.settings.llmProfiles) {
-			if (seenProviders.has(profile.apiProvider)) continue;
-			seenProviders.add(profile.apiProvider);
-			const label = providerLabels[profile.apiProvider] ?? profile.name ?? profile.apiProvider;
+		for (const item of this.plugin.settings.llmProfiles) {
+			if (seenProviders.has(item.apiProvider)) continue;
+			seenProviders.add(item.apiProvider);
+			const label = providerLabels[item.apiProvider] ?? item.name ?? item.apiProvider;
 			const option = this.providerSelectEl.createEl("option", {
-				value: profile.apiProvider,
+				value: item.apiProvider,
 				text: label,
 			});
-			if (profile.apiProvider === currentProvider) {
+			if (item.apiProvider === currentProvider) {
 				option.selected = true;
 			}
 		}
 
+		let remoteModels = profile.remoteModels;
+		if (providerSupportsRemoteModelList(currentProvider)) {
+			remoteModels = await this.plugin.ensureProfileRemoteModels(profile);
+		}
+
 		this.modelSelectEl.empty();
-		const models = getChatModelsForProvider(currentProvider, this.getEffectiveModelName());
+		const models = getChatModelsForProvider(
+			currentProvider,
+			this.getEffectiveModelName(),
+			remoteModels
+		);
 		if (models.length === 0) {
 			const model = this.getEffectiveModelName();
 			this.modelSelectEl.createEl("option", { value: model, text: model });
 		} else {
-			for (const model of models) {
-				const option = this.modelSelectEl.createEl("option", { value: model, text: model });
-				if (model === this.getEffectiveModelName()) {
+			for (const modelId of models) {
+				const remote = findRemoteModel(remoteModels, modelId);
+				const label = remote ? formatRemoteModelLabel(remote) : modelId;
+				const option = this.modelSelectEl.createEl("option", { value: modelId, text: label });
+				if (modelId === this.getEffectiveModelName()) {
 					option.selected = true;
 				}
 			}
@@ -499,15 +513,26 @@ export class ChatView extends ItemView {
 		this.currentProfileId = profile.id;
 		this.currentModelName = profile.modelName;
 		this.applySessionModel();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, profile.modelName);
 		await this.refreshModelSelectors();
 		await this.persistCurrentSession();
+		void this.refreshContextPreview();
 	}
 
 	private async handleModelChange(modelName: string): Promise<void> {
 		if (!modelName || modelName === this.getEffectiveModelName()) return;
 		this.currentModelName = modelName;
+		const profile = this.getCurrentProfile();
 		this.applySessionModel();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, modelName);
 		await this.persistCurrentSession();
+		void this.refreshContextPreview();
 	}
 
 	private openRenameSessionModal(): void {
@@ -543,9 +568,16 @@ export class ChatView extends ItemView {
 		this.currentModelName = session.modelName?.trim() || profile.modelName;
 		this.applySessionModel();
 		await this.plugin.chatHistoryService.setActiveSessionId(sessionId);
-		await this.refreshModelSelectors();
+		if (providerSupportsRemoteModelList(profile.apiProvider)) {
+			await this.plugin.ensureProfileRemoteModels(profile);
+		}
+		await this.plugin.applyModelProfileSettings(profile, this.getEffectiveModelName(), {
+			save: false,
+		});
 		await this.loadSessionIntoView(session);
+		await this.refreshModelSelectors();
 		await this.refreshSessionSelect();
+		void this.refreshContextPreview();
 	}
 
 	private async startNewChat(): Promise<void> {
@@ -670,7 +702,7 @@ export class ChatView extends ItemView {
 		const summary = panel.createEl("summary", { cls: "lecture-lens-chat-scope-summary" });
 		const leading = summary.createEl("div", { cls: "lecture-lens-chat-scope-leading" });
 		const iconEl = leading.createEl("span", { cls: "lecture-lens-chat-scope-icon" });
-		setIcon(iconEl, hasRag ? "folder-open" : "folder-x");
+		setIcon(iconEl, hasRag ? "library-big" : "library");
 		leading.createEl("span", {
 			cls: `lecture-lens-chat-scope-badge ${hasRag ? "is-on" : "is-off"}`,
 			text: hasRag ? this.plugin.tr("chat.ragStatusOn") : this.plugin.tr("chat.ragStatusOff"),
@@ -987,7 +1019,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.insertAtCursor"),
 			},
 		});
-		setIcon(insertBtn, "text-cursor-input");
+		setIcon(insertBtn, "text-cursor");
 		insertBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "cursor"));
 
 		const appendBtn = actions.createEl("button", {
@@ -997,7 +1029,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.appendToNote"),
 			},
 		});
-		setIcon(appendBtn, "arrow-down-to-line");
+		setIcon(appendBtn, "corner-down-left");
 		appendBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "end"));
 
 		const replaceBtn = actions.createEl("button", {
@@ -1007,7 +1039,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.replaceSelection"),
 			},
 		});
-		setIcon(replaceBtn, "replace");
+		setIcon(replaceBtn, "arrow-left-right");
 		replaceBtn.addEventListener("click", () => this.insertMessageIntoNote(content, "selection"));
 
 		const applyBtn = actions.createEl("button", {
@@ -1017,7 +1049,7 @@ export class ChatView extends ItemView {
 				title: this.plugin.tr("chat.applyToNote"),
 			},
 		});
-		setIcon(applyBtn, "file-pen-line");
+		setIcon(applyBtn, "notebook-pen");
 		applyBtn.addEventListener("click", () => this.applyMessageToNote(content));
 	}
 
@@ -1246,7 +1278,6 @@ export class ChatView extends ItemView {
 
 			const enhancedResponse = enhanceAssistantCitations(
 				fullResponse,
-				this.getContextFiles(),
 				snapshot.notes,
 				snapshot.ragChunks,
 				this.plugin.tr("chat.citationSourcesHeading")
@@ -1288,6 +1319,9 @@ export class ChatView extends ItemView {
 
 	private getContextFiles(): TFile[] {
 		if (!this.sessionIncludeNotes) return [];
+		this.attachedFiles = this.attachedFiles.filter(
+			(file) => this.app.vault.getAbstractFileByPath(file.path) instanceof TFile
+		);
 		const activeFile = this.app.workspace.getActiveFile();
 		const current = this.includeCurrentNote && activeFile?.extension === "md" ? activeFile : null;
 		return this.plugin.noteContextService.dedupeFiles([current, ...this.attachedFiles]);
@@ -1313,8 +1347,15 @@ export class ChatView extends ItemView {
 		);
 
 		try {
+			const profile = this.getCurrentProfile();
+			const remote = findRemoteModel(profile.remoteModels, this.getEffectiveModelName());
+			const temperature = resolveChatTemperature(
+				profile.apiProvider,
+				this.getEffectiveModelName(),
+				remote
+			);
 			for await (const chunk of this.plugin.llmService.chatCompletionStream(messages, {
-				temperature: 0.7,
+				temperature,
 				max_tokens: DEFAULT_CHAT_MAX_TOKENS,
 			})) {
 				fullResponse += chunk;

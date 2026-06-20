@@ -13,6 +13,20 @@ Release assets and full diffs: [GitHub Releases](https://github.com/Yima-Gu/obsi
 
 ---
 
+## [1.1.5] — 2026-06-20
+
+**Minimum Obsidian version:** 1.8.7
+
+### Fixed
+
+- **Community review:** Remove redundant “Obsidian” from `manifest.json` description
+- **Community review:** GitHub Release ships only `main.js`, `manifest.json`, and `styles.css` (runtime WASM/worker files are fetched on first use)
+- **Popout windows:** Use `activeDocument` for chat table scroll wrappers
+
+[1.1.5]: https://github.com/Yima-Gu/obsidian-lecture-lens/releases/tag/1.1.5
+
+---
+
 ## [1.1.4] — 2026-06-14
 
 **Minimum Obsidian version:** 1.8.7

@@ -66,13 +66,21 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
-                  gh release create "$tag" \
-                      --title "$tag" \
-                      --generate-notes \
-                      main.js \
-                      manifest.json \
-                      styles.css \
-                      transformers.min.js \
-                      ort-wasm-simd.wasm \
-                      ort-wasm.wasm \
+                  assets=(
+                      main.js
+                      manifest.json
+                      styles.css
+                      transformers.min.js
+                      ort-wasm-simd.wasm
+                      ort-wasm.wasm
                       pdf.worker*.min.mjs
+                  )
+                  if gh release view "$tag" >/dev/null 2>&1; then
+                      echo "Release $tag already exists — uploading build artifacts."
+                      gh release upload "$tag" --clobber "${assets[@]}"
+                  else
+                      gh release create "$tag" \
+                          --title "$tag" \
+                          --generate-notes \
+                          "${assets[@]}"
+                  fi
